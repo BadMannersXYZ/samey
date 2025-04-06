@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <title>Post #{{ post.id }} - Samey</title>
+    <meta
+      property="og:title"
+      content="{% if let Some(title) = post.title %}{{ title }}{% endif %}"
+    />
+    <meta property="og:url" content="/view/{{ post.id }}" />
+    <meta property="og:image" content="/files/{{ post.media }}" />
+    <meta property="og:image:width" content="{{ post.width }}" />
+    <meta property="og:image:height" content="{{ post.height }}" />
+    <!-- <meta property="og:image:alt" content="TO-DO" /> -->
+    <meta
+      property="og:description"
+      content="{% if let Some(description) = post.description %}{{ description }}{% endif %}"
+    />
+    <meta
+      property="twitter:title"
+      content="{% if let Some(title) = post.title %}{{ title }}{% endif %}"
+    />
+    <meta property="twitter:image:src" content="/files/{{ post.media }}" />
+    <meta property="twitter:card" content="summary_large_image" />
+  </head>
+  <body>
+    <main>
+      <h1>View post #{{ post.id }}</h1>
+      <div>{% include "get_media.html" %}</div>
+    </main>
+    <article>
+      <h2>Details</h2>
+      {% include "post_details.html" %}
+    </article>
+    <article>
+      <h2>Tags</h2>
+      <ul id="tags-list">
+        {% for tag in tags %}
+        <li>
+          <a href="/posts?tags={{ tag.name }}">{{ tag.name }}</a>
+        </li>
+        {% endfor %}
+      </ul>
+    </article>
+  </body>
+</html>

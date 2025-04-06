@@ -1,0 +1,11 @@
+<li>
+  <input
+    name="source"
+    type="url"
+    maxlength="200"
+    value="{% if let Some(url) = source.url %}{{ url }}{% endif %}"
+  />
+  <button hx-delete="/remove" hx-target="closest li" hx-swap="outerHTML">
+    -
+  </button>
+</li>

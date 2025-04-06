@@ -1,0 +1,48 @@
+<div id="post-details" hx-target="this" hx-swap="outerHTML">
+  <div>
+    <label>Title</label>
+    {% if let Some(title) = post.title %}{{ title }}{% else %}<em>None</em>{%
+    endif %}
+  </div>
+  <div>
+    <label>Description</label>
+    {% if let Some(description) = post.description %}{{ description }}{% else
+    %}<em>None</em>{% endif %}
+  </div>
+  <div>
+    <label>Is public?</label>
+    {% if post.is_public %}Yes{% else %}No{% endif %}
+  </div>
+  <div>
+    <label>Rating</label>
+    {% match post.rating.as_ref() %} {% when "u" %} Unrated {% when "s" %} Safe
+    {% when "q" %} Questionable {% when "e" %} Explicit {% else %} Unknown {%
+    endmatch %}
+  </div>
+  <div>
+    <label>Source(s)</label>
+    {% if sources.is_empty() %}
+    <em>None</em>{% else %}
+    <ul>
+      {% for source in sources %}
+      <li id="source-{{ source.id }}">
+        <a href="{{ source.url }}">{{ source.url }}</a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+  <div>
+    <label>Width</label>
+    {{ post.width }}px
+  </div>
+  <div>
+    <label>Height</label>
+    {{ post.height }}px
+  </div>
+  <div>
+    <label>Upload date</label>
+    {{ post.uploaded_at }}
+  </div>
+  <button hx-get="/post_details/{{ post.id }}/edit">Edit</button>
+</div>

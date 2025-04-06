@@ -1,0 +1,12 @@
+<input
+  class="tags"
+  type="text"
+  name="tags"
+  hx-post="/search_tags"
+  hx-trigger="input changed delay:400ms"
+  hx-target="next .tags-autocomplete"
+  hx-swap="innerHTML"
+  hx-on::after-settle="this.focus(); this.setSelectionRange(-1, -1);"
+  value="{{ tags }}"
+/>
+<ul class="tags-autocomplete" hx-swap-oob="outerHTML:.tags-autocomplete"></ul>

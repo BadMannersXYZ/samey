@@ -1,0 +1,7 @@
+<img
+  hx-get="/media/{{ post.id }}"
+  hx-swap="outerHTML"
+  id="media"
+  src="/files/{{ post.media }}"
+  style="width: {{ post.width }}px; height: {{ post.height }}px; aspect-ratio: {{ post.width }} / {{ post.height }}; cursor: zoom-out"
+/>

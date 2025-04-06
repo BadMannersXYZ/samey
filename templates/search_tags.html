@@ -1,0 +1,11 @@
+{% for tag in tags %}
+<li>
+  <button
+    hx-post="/select_tag/{{ tag.name }}"
+    hx-target="previous .tags"
+    hx-swap="outerHTML"
+  >
+    {{ tag.name }}
+  </button>
+</li>
+{% endfor %}

@@ -1,0 +1,8 @@
+{% include "post_details.html" %}
+<ul id="tags-list" hx-swap-oob="outerHTML">
+  {% for tag in tags %}
+  <li>
+    <a href="/posts?tags={{ tag.name }}">{{ tag.name }}</a>
+  </li>
+  {% endfor %}
+</ul>
