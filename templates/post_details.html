@@ -44,5 +44,7 @@
     <label>Upload date</label>
     {{ post.uploaded_at }}
   </div>
+  {% if can_edit %}
   <button hx-get="/post_details/{{ post.id }}/edit">Edit</button>
+  {% endif %}
 </div>

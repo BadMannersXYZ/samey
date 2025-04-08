@@ -4,5 +4,7 @@ pub mod prelude;
 
 pub mod samey_post;
 pub mod samey_post_source;
+pub mod samey_session;
 pub mod samey_tag;
 pub mod samey_tag_post;
+pub mod samey_user;

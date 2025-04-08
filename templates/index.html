@@ -27,6 +27,7 @@
           <button type="submit">Search</button>
         </form>
       </article>
+      {% if let Some(user) = user %}
       <article>
         <h2>Upload media</h2>
         <form method="post" action="/upload" enctype="multipart/form-data">
@@ -51,6 +52,25 @@
           <button type="submit">Submit</button>
         </form>
       </article>
+      <article>
+        <a href="/logout">Log out</a>
+      </article>
+      {% else %}
+      <article>
+        <h2>Log in</h2>
+        <form method="post" action="/login">
+          <div>
+            <label>Username</label>
+            <input id="username" type="text" name="username" />
+          </div>
+          <div>
+            <label>Password</label>
+            <input id="password" type="password" name="password" />
+          </div>
+          <button type="submit">Submit</button>
+        </form>
+      </article>
+      {% endif %}
     </main>
   </body>
 </html>

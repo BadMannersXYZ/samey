@@ -2,13 +2,16 @@ use std::collections::HashSet;
 
 use migration::{Expr, Query};
 use sea_orm::{
-    ColumnTrait, EntityTrait, FromQueryResult, QueryFilter, QueryOrder, QuerySelect, RelationTrait,
-    Select, SelectModel, Selector,
+    ColumnTrait, Condition, EntityTrait, FromQueryResult, IntoSimpleExpr, QueryFilter, QueryOrder,
+    QuerySelect, RelationTrait, Select, SelectModel, Selector,
 };
 
-use crate::entities::{
-    prelude::{SameyPost, SameyTag, SameyTagPost},
-    samey_post, samey_tag, samey_tag_post,
+use crate::{
+    auth::User,
+    entities::{
+        prelude::{SameyPost, SameyTag, SameyTagPost},
+        samey_post, samey_tag, samey_tag_post,
+    },
 };
 
 #[derive(Debug, FromQueryResult)]
@@ -18,14 +21,17 @@ pub(crate) struct SearchPost {
     pub(crate) tags: String,
 }
 
-pub(crate) fn search_posts(tags: Option<&Vec<&str>>) -> Selector<SelectModel<SearchPost>> {
+pub(crate) fn search_posts(
+    tags: Option<&Vec<&str>>,
+    user: Option<User>,
+) -> Selector<SelectModel<SearchPost>> {
     let tags: HashSet<String> = match tags {
         Some(tags) if !tags.is_empty() => tags.iter().map(|&tag| tag.to_lowercase()).collect(),
         _ => HashSet::new(),
     };
 
-    if tags.is_empty() {
-        let query = SameyPost::find()
+    let mut query = if tags.is_empty() {
+        SameyPost::find()
             .select_only()
             .column(samey_post::Column::Id)
             .column(samey_post::Column::Thumbnail)
@@ -39,46 +45,54 @@ pub(crate) fn search_posts(tags: Option<&Vec<&str>>) -> Selector<SelectModel<Sea
                 samey_tag_post::Relation::SameyTag.def(),
             )
             .group_by(samey_post::Column::Id)
-            .order_by_desc(samey_post::Column::Id);
+            .order_by_desc(samey_post::Column::Id)
+    } else {
+        let tags_count = tags.len() as u32;
+        let subquery = Query::select()
+            .column((SameyPost, samey_post::Column::Id))
+            .from(SameyPost)
+            .inner_join(
+                SameyTagPost,
+                Expr::col((SameyPost, samey_post::Column::Id))
+                    .equals((SameyTagPost, samey_tag_post::Column::PostId)),
+            )
+            .inner_join(
+                SameyTag,
+                Expr::col((SameyTagPost, samey_tag_post::Column::TagId))
+                    .equals((SameyTag, samey_tag::Column::Id)),
+            )
+            .and_where(samey_tag::Column::NormalizedName.is_in(tags))
+            .group_by_col((SameyPost, samey_post::Column::Id))
+            .and_having(samey_tag::Column::Id.count().eq(tags_count))
+            .to_owned();
+        SameyPost::find()
+            .select_only()
+            .column(samey_post::Column::Id)
+            .column(samey_post::Column::Thumbnail)
+            .column_as(
+                Expr::cust("GROUP_CONCAT(\"samey_tag\".\"name\", ' ')"),
+                "tags",
+            )
+            .inner_join(SameyTagPost)
+            .join(
+                sea_orm::JoinType::InnerJoin,
+                samey_tag_post::Relation::SameyTag.def(),
+            )
+            .filter(samey_post::Column::Id.in_subquery(subquery))
+            .group_by(samey_post::Column::Id)
+            .order_by_desc(samey_post::Column::Id)
         // println!("{}", &query.build(sea_orm::DatabaseBackend::Sqlite).sql);
-        return query.into_model::<SearchPost>();
+    };
+    query = match user {
+        None => query.filter(samey_post::Column::IsPublic.into_simple_expr()),
+        Some(user) if !user.is_admin => query.filter(
+            Condition::any()
+                .add(samey_post::Column::IsPublic.into_simple_expr())
+                .add(samey_post::Column::UploaderId.eq(user.id)),
+        ),
+        _ => query,
     };
 
-    let tags_count = tags.len() as u32;
-    let subquery = Query::select()
-        .column((SameyPost, samey_post::Column::Id))
-        .from(SameyPost)
-        .inner_join(
-            SameyTagPost,
-            Expr::col((SameyPost, samey_post::Column::Id))
-                .equals((SameyTagPost, samey_tag_post::Column::PostId)),
-        )
-        .inner_join(
-            SameyTag,
-            Expr::col((SameyTagPost, samey_tag_post::Column::TagId))
-                .equals((SameyTag, samey_tag::Column::Id)),
-        )
-        .and_where(samey_tag::Column::NormalizedName.is_in(tags))
-        .group_by_col((SameyPost, samey_post::Column::Id))
-        .and_having(samey_tag::Column::Id.count().eq(tags_count))
-        .to_owned();
-    let query = SameyPost::find()
-        .select_only()
-        .column(samey_post::Column::Id)
-        .column(samey_post::Column::Thumbnail)
-        .column_as(
-            Expr::cust("GROUP_CONCAT(\"samey_tag\".\"name\", ' ')"),
-            "tags",
-        )
-        .inner_join(SameyTagPost)
-        .join(
-            sea_orm::JoinType::InnerJoin,
-            samey_tag_post::Relation::SameyTag.def(),
-        )
-        .filter(samey_post::Column::Id.in_subquery(subquery))
-        .group_by(samey_post::Column::Id)
-        .order_by_desc(samey_post::Column::Id);
-    // println!("{}", &query.build(sea_orm::DatabaseBackend::Sqlite).sql);
     query.into_model::<SearchPost>()
 }
 

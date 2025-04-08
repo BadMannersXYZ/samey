@@ -7,6 +7,7 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
+    pub uploader_id: i32,
     pub media: String,
     pub width: i32,
     pub height: i32,
@@ -35,6 +36,14 @@ pub enum Relation {
     SameyPostSource,
     #[sea_orm(has_many = "super::samey_tag_post::Entity")]
     SameyTagPost,
+    #[sea_orm(
+        belongs_to = "super::samey_user::Entity",
+        from = "Column::UploaderId",
+        to = "super::samey_user::Column::Id",
+        on_update = "NoAction",
+        on_delete = "Cascade"
+    )]
+    SameyUser,
 }
 
 impl Related<super::samey_post_source::Entity> for Entity {
@@ -46,6 +55,12 @@ impl Related<super::samey_post_source::Entity> for Entity {
 impl Related<super::samey_tag_post::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::SameyTagPost.def()
+    }
+}
+
+impl Related<super::samey_user::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::SameyUser.def()
     }
 }
 

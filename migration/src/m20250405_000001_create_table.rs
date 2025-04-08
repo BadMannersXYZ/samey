@@ -9,31 +9,68 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
+                    .table(SameySession::Table)
+                    .if_not_exists()
+                    .col(pk_auto(SameySession::Id))
+                    .col(string_uniq(SameySession::SessionId))
+                    .col(json(SameySession::Data))
+                    .col(big_integer(SameySession::ExpiryDate))
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(SameyUser::Table)
+                    .if_not_exists()
+                    .col(pk_auto(SameyUser::Id))
+                    .col(string_len_uniq(SameyUser::Username, 50))
+                    .col(string(SameyUser::Password))
+                    .col(boolean(SameyUser::IsAdmin).default(false))
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
                     .table(SameyPost::Table)
                     .if_not_exists()
                     .col(pk_auto(SameyPost::Id))
+                    .col(integer(SameyPost::UploaderId))
                     .col(string_len(SameyPost::Media, 255))
                     .col(integer(SameyPost::Width))
                     .col(integer(SameyPost::Height))
                     .col(string_len(SameyPost::Thumbnail, 255))
                     .col(string_len_null(SameyPost::Title, 100))
                     .col(text_null(SameyPost::Description))
-                    .col(boolean(SameyPost::IsPublic))
-                    .col(enumeration(
-                        SameyPost::Rating,
-                        Rating::Enum,
-                        [
-                            Rating::Unrated,
-                            Rating::Safe,
-                            Rating::Questionable,
-                            Rating::Explicit,
-                        ],
-                    ))
+                    .col(boolean(SameyPost::IsPublic).default(false))
+                    .col(
+                        enumeration(
+                            SameyPost::Rating,
+                            Rating::Enum,
+                            [
+                                Rating::Unrated,
+                                Rating::Safe,
+                                Rating::Questionable,
+                                Rating::Explicit,
+                            ],
+                        )
+                        .default(Rating::Unrated.into_iden().to_string()),
+                    )
                     .col(date_time(SameyPost::UploadedAt))
                     .col(integer_null(SameyPost::ParentId))
                     .foreign_key(
                         ForeignKeyCreateStatement::new()
-                            .name("fk-samey_post-samey_post-parent")
+                            .name("fk-samey_post-samey_user-uploader_id")
+                            .from(SameyPost::Table, SameyPost::UploaderId)
+                            .to(SameyUser::Table, SameyUser::Id)
+                            .on_delete(ForeignKeyAction::Cascade),
+                    )
+                    .foreign_key(
+                        ForeignKeyCreateStatement::new()
+                            .name("fk-samey_post-samey_post-parent_id")
                             .from(SameyPost::Table, SameyPost::ParentId)
                             .to(SameyPost::Table, SameyPost::Id)
                             .on_delete(ForeignKeyAction::SetNull),
@@ -52,7 +89,7 @@ impl MigrationTrait for Migration {
                     .col(integer(SameyPostSource::PostId))
                     .foreign_key(
                         ForeignKeyCreateStatement::new()
-                            .name("fk-samey_post_source-samey_post")
+                            .name("fk-samey_post_source-samey_post-post_id")
                             .from(SameyPostSource::Table, SameyPostSource::PostId)
                             .to(SameyPost::Table, SameyPostSource::Id)
                             .on_delete(ForeignKeyAction::Cascade),
@@ -83,14 +120,14 @@ impl MigrationTrait for Migration {
                     .col(integer(SameyTagPost::PostId))
                     .foreign_key(
                         ForeignKeyCreateStatement::new()
-                            .name("fk-samey_tag_post-samey_tag")
+                            .name("fk-samey_tag_post-samey_tag-tag_id")
                             .from(SameyTagPost::Table, SameyTagPost::TagId)
                             .to(SameyTag::Table, SameyTag::Id)
                             .on_delete(ForeignKeyAction::Cascade),
                     )
                     .foreign_key(
                         ForeignKeyCreateStatement::new()
-                            .name("fk-samey_tag_post-samey_post")
+                            .name("fk-samey_tag_post-samey_post-post_id")
                             .from(SameyTagPost::Table, SameyTagPost::PostId)
                             .to(SameyPost::Table, SameyPost::Id)
                             .on_delete(ForeignKeyAction::Cascade),
@@ -127,8 +164,36 @@ impl MigrationTrait for Migration {
             .drop_table(Table::drop().table(SameyPost::Table).to_owned())
             .await?;
 
+        manager
+            .drop_table(Table::drop().table(SameyUser::Table).to_owned())
+            .await?;
+
+        manager
+            .drop_table(Table::drop().table(SameySession::Table).to_owned())
+            .await?;
+
         Ok(())
     }
+}
+
+#[derive(DeriveIden)]
+enum SameySession {
+    #[sea_orm(iden = "samey_session")]
+    Table,
+    Id,
+    SessionId,
+    Data,
+    ExpiryDate,
+}
+
+#[derive(DeriveIden)]
+enum SameyUser {
+    #[sea_orm(iden = "samey_user")]
+    Table,
+    Id,
+    Username,
+    Password,
+    IsAdmin,
 }
 
 #[derive(DeriveIden)]
@@ -136,6 +201,7 @@ enum SameyPost {
     #[sea_orm(iden = "samey_post")]
     Table,
     Id,
+    UploaderId,
     Media,
     Width,
     Height,

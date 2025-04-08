@@ -19,10 +19,14 @@ pub enum SameyError {
     Multipart(#[from] axum::extract::multipart::MultipartError),
     #[error("Image error: {0}")]
     Image(#[from] image::ImageError),
-    #[error("Internal error: {0}")]
-    Other(String),
     #[error("Not found")]
     NotFound,
+    #[error("Authentication error: {0}")]
+    Authentication(String),
+    #[error("Not allowed")]
+    Forbidden,
+    #[error("Internal error: {0}")]
+    Other(String),
 }
 
 impl IntoResponse for SameyError {
@@ -42,6 +46,10 @@ impl IntoResponse for SameyError {
                 (StatusCode::BAD_REQUEST, "Invalid request").into_response()
             }
             SameyError::NotFound => (StatusCode::NOT_FOUND, "Resource not found").into_response(),
+            SameyError::Authentication(_) => {
+                (StatusCode::UNAUTHORIZED, "Not authorized").into_response()
+            }
+            SameyError::Forbidden => (StatusCode::FORBIDDEN, "Forbidden").into_response(),
         }
     }
 }

@@ -2,5 +2,7 @@
 
 pub use super::samey_post::Entity as SameyPost;
 pub use super::samey_post_source::Entity as SameyPostSource;
+pub use super::samey_session::Entity as SameySession;
 pub use super::samey_tag::Entity as SameyTag;
 pub use super::samey_tag_post::Entity as SameyTagPost;
+pub use super::samey_user::Entity as SameyUser;

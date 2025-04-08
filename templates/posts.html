@@ -9,7 +9,7 @@
   <body>
     <article>
       <h2>Search</h2>
-      <form method="get" action="/posts/1">
+      <form method="get" action="/posts">
         <input
           class="tags"
           type="text"
@@ -29,7 +29,7 @@
       <h2>Tags</h2>
       <ul>
         {% if let Some(tags) = tags %} {% for tag in tags %}
-        <li><a href="/posts/1?tags={{ tag }}">{{ tag }}</a></li>
+        <li><a href="/posts?tags={{ tag }}">{{ tag }}</a></li>
         {% endfor %} {% endif %}
       </ul>
     </article>

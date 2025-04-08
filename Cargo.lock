@@ -2863,10 +2863,12 @@ name = "samey"
 version = "0.1.0"
 dependencies = [
  "askama",
+ "async-trait",
  "axum",
  "axum-extra",
  "axum-login",
  "chrono",
+ "clap",
  "futures-util",
  "image",
  "itertools 0.14.0",
@@ -2875,9 +2877,12 @@ dependencies = [
  "rand 0.9.0",
  "sea-orm",
  "serde",
+ "serde_json",
  "thiserror 2.0.12",
+ "time",
  "tokio",
  "tower-http",
+ "tower-sessions",
 ]
 
 [[package]]

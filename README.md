@@ -4,7 +4,6 @@ Sam's small image board. Currently a WIP.
 
 ## TODO
 
-- [ ] Authentication
 - [ ] Improve filters
 - [ ] Pools
 - [ ] Video support

@@ -24,6 +24,7 @@ use tokio::task::spawn_blocking;
 
 use crate::{
     AppState,
+    auth::{AuthSession, Credentials, User},
     entities::{
         prelude::{SameyPost, SameyPostSource, SameyTag, SameyTagPost},
         samey_post, samey_post_source, samey_tag, samey_tag_post,
@@ -38,18 +39,58 @@ const MAX_THUMBNAIL_DIMENSION: u32 = 192;
 
 #[derive(Template)]
 #[template(path = "index.html")]
-struct IndexTemplate {}
+struct IndexTemplate {
+    user: Option<User>,
+}
 
-pub(crate) async fn index() -> Result<impl IntoResponse, SameyError> {
-    Ok(Html(IndexTemplate {}.render()?))
+pub(crate) async fn index(auth_session: AuthSession) -> Result<impl IntoResponse, SameyError> {
+    Ok(Html(
+        IndexTemplate {
+            user: auth_session.user,
+        }
+        .render()?,
+    ))
+}
+
+// Auth views
+
+pub(crate) async fn login(
+    mut auth_session: AuthSession,
+    Form(credentials): Form<Credentials>,
+) -> Result<impl IntoResponse, SameyError> {
+    let user = match auth_session.authenticate(credentials).await {
+        Ok(Some(user)) => user,
+        Ok(None) => return Err(SameyError::Authentication("Invalid credentials".into())),
+        Err(_) => return Err(SameyError::Other("Auth session error".into())),
+    };
+
+    auth_session
+        .login(&user)
+        .await
+        .map_err(|_| SameyError::Other("Login failed".into()))?;
+    Ok(Redirect::to("/"))
+}
+
+pub(crate) async fn logout(mut auth_session: AuthSession) -> Result<impl IntoResponse, SameyError> {
+    auth_session
+        .logout()
+        .await
+        .map_err(|_| SameyError::Other("Logout error".into()))?;
+    Ok(Redirect::to("/"))
 }
 
 // Post upload view
 
 pub(crate) async fn upload(
     State(AppState { db, files_dir }): State<AppState>,
+    auth_session: AuthSession,
     mut multipart: Multipart,
 ) -> Result<impl IntoResponse, SameyError> {
+    let user = match auth_session.user {
+        Some(user) => user,
+        None => return Err(SameyError::Forbidden),
+    };
+
     let mut upload_tags: Option<Vec<samey_tag::Model>> = None;
     let mut source_file: Option<String> = None;
     let mut thumbnail_file: Option<String> = None;
@@ -147,6 +188,7 @@ pub(crate) async fn upload(
         height.map(|h| h.get()),
     ) {
         let uploaded_post = SameyPost::insert(samey_post::ActiveModel {
+            uploader_id: Set(user.id),
             media: Set(source_file),
             width: Set(width),
             height: Set(height),
@@ -263,13 +305,15 @@ pub(crate) struct PostsQuery {
 
 pub(crate) async fn posts(
     state: State<AppState>,
+    auth_session: AuthSession,
     query: Query<PostsQuery>,
 ) -> Result<impl IntoResponse, SameyError> {
-    posts_page(state, query, Path(1)).await
+    posts_page(state, auth_session, query, Path(1)).await
 }
 
 pub(crate) async fn posts_page(
     State(AppState { db, .. }): State<AppState>,
+    auth_session: AuthSession,
     Query(query): Query<PostsQuery>,
     Path(page): Path<u32>,
 ) -> Result<impl IntoResponse, SameyError> {
@@ -277,7 +321,7 @@ pub(crate) async fn posts_page(
         .tags
         .as_ref()
         .map(|tags| tags.split_whitespace().collect::<Vec<_>>());
-    let pagination = search_posts(tags.as_ref()).paginate(&db, 50);
+    let pagination = search_posts(tags.as_ref(), auth_session.user).paginate(&db, 50);
     let page_count = pagination.num_pages().await?;
     let posts = pagination.fetch_page(page.saturating_sub(1) as u64).await?;
     let posts = posts
@@ -312,10 +356,12 @@ struct ViewPostTemplate {
     post: samey_post::Model,
     tags: Vec<samey_tag::Model>,
     sources: Vec<samey_post_source::Model>,
+    can_edit: bool,
 }
 
 pub(crate) async fn view_post(
     State(AppState { db, .. }): State<AppState>,
+    auth_session: AuthSession,
     Path(post_id): Path<u32>,
 ) -> Result<impl IntoResponse, SameyError> {
     let tags = get_tags_for_post(post_id as i32).all(&db).await?;
@@ -330,11 +376,21 @@ pub(crate) async fn view_post(
         .await?
         .ok_or(SameyError::NotFound)?;
 
+    let can_edit = match auth_session.user {
+        None => false,
+        Some(user) => user.is_admin || post.uploader_id == user.id,
+    };
+
+    if !post.is_public && !can_edit {
+        return Err(SameyError::NotFound);
+    }
+
     Ok(Html(
         ViewPostTemplate {
             post,
             tags,
             sources,
+            can_edit,
         }
         .render()?,
     ))
@@ -345,23 +401,42 @@ pub(crate) async fn view_post(
 struct PostDetailsTemplate {
     post: samey_post::Model,
     sources: Vec<samey_post_source::Model>,
+    can_edit: bool,
 }
 
 pub(crate) async fn post_details(
     State(AppState { db, .. }): State<AppState>,
+    auth_session: AuthSession,
     Path(post_id): Path<u32>,
 ) -> Result<impl IntoResponse, SameyError> {
+    let post_id = post_id as i32;
     let sources = SameyPostSource::find()
         .filter(samey_post_source::Column::PostId.eq(post_id))
         .all(&db)
         .await?;
 
-    let post = SameyPost::find_by_id(post_id as i32)
+    let post = SameyPost::find_by_id(post_id)
         .one(&db)
         .await?
         .ok_or(SameyError::NotFound)?;
 
-    Ok(Html(PostDetailsTemplate { post, sources }.render()?))
+    let can_edit = match auth_session.user {
+        None => false,
+        Some(user) => user.is_admin || post.uploader_id == user.id,
+    };
+
+    if !post.is_public && !can_edit {
+        return Err(SameyError::NotFound);
+    }
+
+    Ok(Html(
+        PostDetailsTemplate {
+            post,
+            sources,
+            can_edit,
+        }
+        .render()?,
+    ))
 }
 
 #[derive(Debug, Deserialize)]
@@ -381,14 +456,31 @@ struct SubmitPostDetailsTemplate {
     post: samey_post::Model,
     sources: Vec<samey_post_source::Model>,
     tags: Vec<samey_tag::Model>,
+    can_edit: bool,
 }
 
 pub(crate) async fn submit_post_details(
     State(AppState { db, .. }): State<AppState>,
+    auth_session: AuthSession,
     Path(post_id): Path<u32>,
     Form(body): Form<SubmitPostDetailsForm>,
 ) -> Result<impl IntoResponse, SameyError> {
     let post_id = post_id as i32;
+
+    let post = SameyPost::find_by_id(post_id)
+        .one(&db)
+        .await?
+        .ok_or(SameyError::NotFound)?;
+
+    match auth_session.user {
+        None => return Err(SameyError::Forbidden),
+        Some(user) => {
+            if !user.is_admin && post.uploader_id != user.id {
+                return Err(SameyError::Forbidden);
+            }
+        }
+    }
+
     let title = match body.title.trim() {
         title if title.is_empty() => None,
         title => Some(title.to_owned()),
@@ -473,6 +565,7 @@ pub(crate) async fn submit_post_details(
             post,
             sources,
             tags: upload_tags,
+            can_edit: true,
         }
         .render()?,
     ))
@@ -492,8 +585,23 @@ struct EditDetailsTemplate {
 
 pub(crate) async fn edit_post_details(
     State(AppState { db, .. }): State<AppState>,
+    auth_session: AuthSession,
     Path(post_id): Path<u32>,
 ) -> Result<impl IntoResponse, SameyError> {
+    let post = SameyPost::find_by_id(post_id as i32)
+        .one(&db)
+        .await?
+        .ok_or(SameyError::NotFound)?;
+
+    match auth_session.user {
+        None => return Err(SameyError::Forbidden),
+        Some(user) => {
+            if !user.is_admin && post.uploader_id != user.id {
+                return Err(SameyError::Forbidden);
+            }
+        }
+    }
+
     let sources = SameyPostSource::find()
         .filter(samey_post_source::Column::PostId.eq(post_id))
         .all(&db)
@@ -511,11 +619,6 @@ pub(crate) async fn edit_post_details(
         .all(&db)
         .await?
         .join(" ");
-
-    let post = SameyPost::find_by_id(post_id as i32)
-        .one(&db)
-        .await?
-        .ok_or(SameyError::NotFound)?;
 
     Ok(Html(
         EditDetailsTemplate {
@@ -554,12 +657,22 @@ struct GetMediaTemplate {
 
 pub(crate) async fn get_media(
     State(AppState { db, .. }): State<AppState>,
+    auth_session: AuthSession,
     Path(post_id): Path<u32>,
 ) -> Result<impl IntoResponse, SameyError> {
     let post = SameyPost::find_by_id(post_id as i32)
         .one(&db)
         .await?
         .ok_or(SameyError::NotFound)?;
+
+    let can_edit = match auth_session.user {
+        None => false,
+        Some(user) => user.is_admin || post.uploader_id == user.id,
+    };
+
+    if !post.is_public && !can_edit {
+        return Err(SameyError::NotFound);
+    }
 
     Ok(Html(GetMediaTemplate { post }.render()?))
 }
@@ -572,24 +685,45 @@ struct GetFullMediaTemplate {
 
 pub(crate) async fn get_full_media(
     State(AppState { db, .. }): State<AppState>,
+    auth_session: AuthSession,
     Path(post_id): Path<u32>,
 ) -> Result<impl IntoResponse, SameyError> {
     let post = SameyPost::find_by_id(post_id as i32)
         .one(&db)
         .await?
         .ok_or(SameyError::NotFound)?;
+
+    let can_edit = match auth_session.user {
+        None => false,
+        Some(user) => user.is_admin || post.uploader_id == user.id,
+    };
+
+    if !post.is_public && !can_edit {
+        return Err(SameyError::NotFound);
+    }
 
     Ok(Html(GetFullMediaTemplate { post }.render()?))
 }
 
 pub(crate) async fn delete_post(
     State(AppState { db, files_dir }): State<AppState>,
+    auth_session: AuthSession,
     Path(post_id): Path<u32>,
 ) -> Result<impl IntoResponse, SameyError> {
     let post = SameyPost::find_by_id(post_id as i32)
         .one(&db)
         .await?
         .ok_or(SameyError::NotFound)?;
+
+    match auth_session.user {
+        None => return Err(SameyError::Forbidden),
+        Some(user) => {
+            if !user.is_admin && post.uploader_id != user.id {
+                return Err(SameyError::Forbidden);
+            }
+        }
+    }
+
     SameyPost::delete_by_id(post.id).exec(&db).await?;
 
     tokio::spawn(async move {
@@ -598,5 +732,5 @@ pub(crate) async fn delete_post(
         let _ = std::fs::remove_file(base_path.join(post.thumbnail));
     });
 
-    Ok(Redirect::to("/posts/1"))
+    Ok(Redirect::to("/"))
 }
