@@ -35,6 +35,9 @@
     </article>
     <main>
       <h1>Viewing posts</h1>
+      {% if posts.is_empty() %}
+      <div>No posts found!</div>
+      {% else %}
       <ul>
         {% for post in posts %}
         <li>
@@ -48,6 +51,7 @@
         {% endfor %}
       </ul>
       <div>Page {{ page }} of {{ page_count }}</div>
+      {% endif %}
     </main>
   </body>
 </html>

@@ -23,7 +23,7 @@ use serde::Deserialize;
 use tokio::task::spawn_blocking;
 
 use crate::{
-    AppState,
+    AppState, NEGATIVE_PREFIX, RATING_PREFIX,
     auth::{AuthSession, Credentials, User},
     entities::{
         prelude::{SameyPost, SameyPostSource, SameyTag, SameyTagPost},
@@ -226,10 +226,15 @@ pub(crate) async fn upload(
 
 // Search fields views
 
+struct SearchTag {
+    name: String,
+    value: String,
+}
+
 #[derive(Template)]
 #[template(path = "search_tags.html")]
 struct SearchTagsTemplate {
-    tags: Vec<samey_tag::Model>,
+    tags: Vec<SearchTag>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -242,14 +247,66 @@ pub(crate) async fn search_tags(
     Form(body): Form<SearchTagsForm>,
 ) -> Result<impl IntoResponse, SameyError> {
     let tags = match body.tags.split(' ').last() {
-        Some(tag) if !tag.is_empty() => {
-            SameyTag::find()
-                .filter(Expr::cust_with_expr(
-                    "LOWER(\"samey_tag\".\"name\") LIKE CONCAT(?, '%')",
-                    tag.to_lowercase(),
-                ))
-                .all(&db)
-                .await?
+        Some(tag) => {
+            if tag.starts_with(NEGATIVE_PREFIX) {
+                if tag[NEGATIVE_PREFIX.len()..].starts_with(RATING_PREFIX) {
+                    [
+                        format!("{}u", RATING_PREFIX),
+                        format!("{}s", RATING_PREFIX),
+                        format!("{}q", RATING_PREFIX),
+                        format!("{}e", RATING_PREFIX),
+                    ]
+                    .into_iter()
+                    .filter(|t| t.starts_with(&tag[NEGATIVE_PREFIX.len()..]))
+                    .map(|tag| SearchTag {
+                        value: format!("-{}", &tag),
+                        name: tag,
+                    })
+                    .collect()
+                } else {
+                    SameyTag::find()
+                        .filter(Expr::cust_with_expr(
+                            "LOWER(\"samey_tag\".\"name\") LIKE CONCAT(?, '%')",
+                            tag[NEGATIVE_PREFIX.len()..].to_lowercase(),
+                        ))
+                        .all(&db)
+                        .await?
+                        .into_iter()
+                        .map(|tag| SearchTag {
+                            value: format!("-{}", &tag.name),
+                            name: tag.name,
+                        })
+                        .collect()
+                }
+            } else if tag.starts_with(RATING_PREFIX) {
+                [
+                    format!("{}u", RATING_PREFIX),
+                    format!("{}s", RATING_PREFIX),
+                    format!("{}q", RATING_PREFIX),
+                    format!("{}e", RATING_PREFIX),
+                ]
+                .into_iter()
+                .filter(|t| t.starts_with(tag))
+                .map(|tag| SearchTag {
+                    value: tag.clone(),
+                    name: tag,
+                })
+                .collect()
+            } else {
+                SameyTag::find()
+                    .filter(Expr::cust_with_expr(
+                        "LOWER(\"samey_tag\".\"name\") LIKE CONCAT(?, '%')",
+                        tag.to_lowercase(),
+                    ))
+                    .all(&db)
+                    .await?
+                    .into_iter()
+                    .map(|tag| SearchTag {
+                        value: tag.name.clone(),
+                        name: tag.name,
+                    })
+                    .collect()
+            }
         }
         _ => vec![],
     };

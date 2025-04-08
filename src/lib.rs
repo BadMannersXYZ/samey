@@ -29,6 +29,9 @@ use crate::views::{
     submit_post_details, upload, view_post,
 };
 
+pub(crate) const NEGATIVE_PREFIX: &str = "-";
+pub(crate) const RATING_PREFIX: &str = "rating:";
+
 #[derive(Clone)]
 pub(crate) struct AppState {
     files_dir: Arc<String>,

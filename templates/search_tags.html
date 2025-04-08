@@ -1,7 +1,7 @@
 {% for tag in tags %}
 <li>
   <button
-    hx-post="/select_tag/{{ tag.name }}"
+    hx-post="/select_tag/{{ tag.value }}"
     hx-target="previous .tags"
     hx-swap="outerHTML"
   >
