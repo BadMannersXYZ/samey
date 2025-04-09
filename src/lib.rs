@@ -74,7 +74,7 @@ pub async fn get_router(db: DatabaseConnection, files_dir: &str) -> Result<Route
             post(upload).layer(DefaultBodyLimit::max(100_000_000)),
         )
         .route("/search_tags", post(search_tags))
-        .route("/select_tag/{new_tag}", post(select_tag))
+        .route("/select_tag", post(select_tag))
         .route("/posts", get(posts))
         .route("/posts/{page}", get(posts_page))
         .route("/view/{post_id}", get(view_post))

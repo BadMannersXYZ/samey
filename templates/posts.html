@@ -16,10 +16,11 @@
           id="search-tags"
           name="tags"
           hx-post="/search_tags"
-          hx-trigger="input changed delay:400ms"
+          hx-trigger="input changed"
           hx-target="next .tags-autocomplete"
+          hx-vals="js:{selection_end: event.target.selectionEnd}"
           hx-on::after-settle="this.focus(); this.setSelectionRange(-1, -1);"
-          value="{% if let Some(tags_text) = tags_text %}{{ tags_text }}{% endif %}"
+          autofocus
         />
         <ul class="tags-autocomplete" id="search-autocomplete"></ul>
         <button type="submit">Search</button>
@@ -46,7 +47,7 @@
             title="{{ post.tags }}"
           >
             <img src="/files/{{ post.thumbnail }}" />
-            <div>{{ post.rating }}</div>
+            <div>{{ post.rating | upper }}</div>
           </a>
         </li>
         {% endfor %}

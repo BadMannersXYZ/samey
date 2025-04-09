@@ -17,8 +17,9 @@
             id="search-tags"
             name="tags"
             hx-post="/search_tags"
-            hx-trigger="input changed delay:400ms"
+            hx-trigger="input changed"
             hx-target="next .tags-autocomplete"
+            hx-vals="js:{selection_end: event.target.selectionEnd}"
             hx-on::after-settle="this.focus(); this.setSelectionRange(-1, -1);"
             autofocus
           />

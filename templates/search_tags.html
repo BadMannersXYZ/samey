@@ -1,9 +1,10 @@
 {% for tag in tags %}
 <li>
   <button
-    hx-post="/select_tag/{{ tag.value }}"
+    hx-post="/select_tag"
     hx-target="previous .tags"
     hx-swap="outerHTML"
+    hx-vals='{"selection_end": {{ selection_end }}, "new_tag": {{ tag.value | json | safe }}}'
   >
     {{ tag.name }}
   </button>

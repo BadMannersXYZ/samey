@@ -52,7 +52,7 @@
         <li>
           <a href="/view/{{ child_post.id }}" title="{{ child_post.tags }}">
             <img src="/files/{{ child_post.thumbnail }}" />
-            <div>{{ child_post.rating }}</div>
+            <div>{{ child_post.rating | upper }}</div>
           </a>
         </li>
         {% endfor %}

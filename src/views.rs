@@ -235,20 +235,25 @@ struct SearchTag {
 #[template(path = "search_tags.html")]
 struct SearchTagsTemplate {
     tags: Vec<SearchTag>,
+    selection_end: usize,
 }
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct SearchTagsForm {
     tags: String,
+    selection_end: usize,
 }
 
 pub(crate) async fn search_tags(
     State(AppState { db, .. }): State<AppState>,
     Form(body): Form<SearchTagsForm>,
 ) -> Result<impl IntoResponse, SameyError> {
-    let tags = match body.tags.split(' ').last() {
-        Some(tag) => {
-            if tag.starts_with(NEGATIVE_PREFIX) {
+    let tags = match body.tags[..body.selection_end].split(' ').last() {
+        Some(mut tag) => {
+            tag = tag.trim();
+            if tag.is_empty() {
+                vec![]
+            } else if tag.starts_with(NEGATIVE_PREFIX) {
                 if tag[NEGATIVE_PREFIX.len()..].starts_with(RATING_PREFIX) {
                     [
                         format!("{}u", RATING_PREFIX),
@@ -269,6 +274,7 @@ pub(crate) async fn search_tags(
                             "LOWER(\"samey_tag\".\"name\") LIKE CONCAT(?, '%')",
                             tag[NEGATIVE_PREFIX.len()..].to_lowercase(),
                         ))
+                        .limit(10)
                         .all(&db)
                         .await?
                         .into_iter()
@@ -298,6 +304,7 @@ pub(crate) async fn search_tags(
                         "LOWER(\"samey_tag\".\"name\") LIKE CONCAT(?, '%')",
                         tag.to_lowercase(),
                     ))
+                    .limit(10)
                     .all(&db)
                     .await?
                     .into_iter()
@@ -310,7 +317,13 @@ pub(crate) async fn search_tags(
         }
         _ => vec![],
     };
-    Ok(Html(SearchTagsTemplate { tags }.render()?))
+    Ok(Html(
+        SearchTagsTemplate {
+            tags,
+            selection_end: body.selection_end,
+        }
+        .render()?,
+    ))
 }
 
 #[derive(Template)]
@@ -322,14 +335,15 @@ struct SelectTagTemplate {
 #[derive(Debug, Deserialize)]
 pub(crate) struct SelectTagForm {
     tags: String,
+    new_tag: String,
+    selection_end: usize,
 }
 
 pub(crate) async fn select_tag(
-    Path(new_tag): Path<String>,
     Form(body): Form<SelectTagForm>,
 ) -> Result<impl IntoResponse, SameyError> {
     let mut tags = String::new();
-    for (tag, _) in body.tags.split_whitespace().tuple_windows() {
+    for (tag, _) in body.tags[..body.selection_end].split(' ').tuple_windows() {
         if !tags.is_empty() {
             tags.push(' ');
         }
@@ -338,7 +352,13 @@ pub(crate) async fn select_tag(
     if !tags.is_empty() {
         tags.push(' ');
     }
-    tags.push_str(&new_tag);
+    tags.push_str(&body.new_tag);
+    for tag in body.tags[body.selection_end..].split(' ') {
+        if !tags.is_empty() {
+            tags.push(' ');
+        }
+        tags.push_str(tag);
+    }
     tags.push(' ');
     Ok(Html(SelectTagTemplate { tags }.render()?))
 }
