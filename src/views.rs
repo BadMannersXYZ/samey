@@ -30,7 +30,7 @@ use crate::{
         samey_post, samey_post_source, samey_tag, samey_tag_post,
     },
     error::SameyError,
-    query::{SearchPost, get_tags_for_post, search_posts},
+    query::{PostOverview, filter_by_user, get_tags_for_post, search_posts},
 };
 
 const MAX_THUMBNAIL_DIMENSION: u32 = 192;
@@ -350,7 +350,7 @@ pub(crate) async fn select_tag(
 struct PostsTemplate<'a> {
     tags: Option<Vec<&'a str>>,
     tags_text: Option<String>,
-    posts: Vec<SearchPost>,
+    posts: Vec<PostOverview>,
     page: u32,
     page_count: u64,
 }
@@ -378,7 +378,7 @@ pub(crate) async fn posts_page(
         .tags
         .as_ref()
         .map(|tags| tags.split_whitespace().collect::<Vec<_>>());
-    let pagination = search_posts(tags.as_ref(), auth_session.user).paginate(&db, 50);
+    let pagination = search_posts(tags.as_ref(), auth_session.user.as_ref()).paginate(&db, 50);
     let page_count = pagination.num_pages().await?;
     let posts = pagination.fetch_page(page.saturating_sub(1) as u64).await?;
     let posts = posts
@@ -386,7 +386,7 @@ pub(crate) async fn posts_page(
         .map(|post| {
             let mut tags_vec: Vec<_> = post.tags.split_ascii_whitespace().collect();
             tags_vec.sort();
-            SearchPost {
+            PostOverview {
                 tags: tags_vec.into_iter().join(" "),
                 ..post
             }
@@ -412,8 +412,11 @@ pub(crate) async fn posts_page(
 struct ViewPostTemplate {
     post: samey_post::Model,
     tags: Vec<samey_tag::Model>,
+    tags_text: String,
     sources: Vec<samey_post_source::Model>,
     can_edit: bool,
+    parent_post: Option<PostOverview>,
+    children_posts: Vec<PostOverview>,
 }
 
 pub(crate) async fn view_post(
@@ -421,17 +424,63 @@ pub(crate) async fn view_post(
     auth_session: AuthSession,
     Path(post_id): Path<u32>,
 ) -> Result<impl IntoResponse, SameyError> {
-    let tags = get_tags_for_post(post_id as i32).all(&db).await?;
+    let post_id = post_id as i32;
+    let tags = get_tags_for_post(post_id).all(&db).await?;
+    let tags_text = tags.iter().map(|tag| &tag.name).join(" ");
 
     let sources = SameyPostSource::find()
         .filter(samey_post_source::Column::PostId.eq(post_id))
         .all(&db)
         .await?;
 
-    let post = SameyPost::find_by_id(post_id as i32)
+    let post = SameyPost::find_by_id(post_id)
         .one(&db)
         .await?
         .ok_or(SameyError::NotFound)?;
+
+    let parent_post = if let Some(parent_id) = post.parent_id {
+        match filter_by_user(SameyPost::find_by_id(parent_id), auth_session.user.as_ref())
+            .one(&db)
+            .await?
+        {
+            Some(parent_post) => Some(PostOverview {
+                id: parent_id,
+                thumbnail: parent_post.thumbnail,
+                tags: get_tags_for_post(post_id)
+                    .all(&db)
+                    .await?
+                    .iter()
+                    .map(|tag| &tag.name)
+                    .join(" "),
+                rating: parent_post.rating,
+            }),
+            None => None,
+        }
+    } else {
+        None
+    };
+
+    let children_posts_models = filter_by_user(
+        SameyPost::find().filter(samey_post::Column::ParentId.eq(post_id)),
+        auth_session.user.as_ref(),
+    )
+    .all(&db)
+    .await?;
+    let mut children_posts = Vec::with_capacity(children_posts_models.capacity());
+
+    for child_post in children_posts_models.into_iter() {
+        children_posts.push(PostOverview {
+            id: child_post.id,
+            thumbnail: child_post.thumbnail,
+            tags: get_tags_for_post(child_post.id)
+                .all(&db)
+                .await?
+                .iter()
+                .map(|tag| &tag.name)
+                .join(" "),
+            rating: child_post.rating,
+        });
+    }
 
     let can_edit = match auth_session.user {
         None => false,
@@ -446,8 +495,11 @@ pub(crate) async fn view_post(
         ViewPostTemplate {
             post,
             tags,
+            tags_text,
             sources,
             can_edit,
+            parent_post,
+            children_posts,
         }
         .render()?,
     ))
@@ -505,12 +557,14 @@ pub(crate) struct SubmitPostDetailsForm {
     #[serde(rename = "source")]
     sources: Option<Vec<String>>,
     tags: String,
+    parent_post: String,
 }
 
 #[derive(Template)]
 #[template(path = "submit_post_details.html")]
 struct SubmitPostDetailsTemplate {
     post: samey_post::Model,
+    parent_post: Option<PostOverview>,
     sources: Vec<samey_post_source::Model>,
     tags: Vec<samey_tag::Model>,
     can_edit: bool,
@@ -529,7 +583,7 @@ pub(crate) async fn submit_post_details(
         .await?
         .ok_or(SameyError::NotFound)?;
 
-    match auth_session.user {
+    match auth_session.user.as_ref() {
         None => return Err(SameyError::Forbidden),
         Some(user) => {
             if !user.is_admin && post.uploader_id != user.id {
@@ -546,6 +600,27 @@ pub(crate) async fn submit_post_details(
         description if description.is_empty() => None,
         description => Some(description.to_owned()),
     };
+    let parent_post = if let Some(parent_id) = body.parent_post.trim().parse().ok() {
+        match filter_by_user(SameyPost::find_by_id(parent_id), auth_session.user.as_ref())
+            .one(&db)
+            .await?
+        {
+            Some(parent_post) => Some(PostOverview {
+                id: parent_id,
+                thumbnail: parent_post.thumbnail,
+                tags: get_tags_for_post(post_id)
+                    .all(&db)
+                    .await?
+                    .iter()
+                    .map(|tag| &tag.name)
+                    .join(" "),
+                rating: parent_post.rating,
+            }),
+            None => None,
+        }
+    } else {
+        None
+    };
     let is_public = body.is_public.is_some();
     let post = SameyPost::update(samey_post::ActiveModel {
         id: Set(post_id),
@@ -553,6 +628,7 @@ pub(crate) async fn submit_post_details(
         description: Set(description),
         is_public: Set(is_public),
         rating: Set(body.rating),
+        parent_id: Set(parent_post.as_ref().map(|post| post.id)),
         ..Default::default()
     })
     .exec(&db)
@@ -622,6 +698,7 @@ pub(crate) async fn submit_post_details(
             post,
             sources,
             tags: upload_tags,
+            parent_post,
             can_edit: true,
         }
         .render()?,

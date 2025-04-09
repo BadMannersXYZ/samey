@@ -123,7 +123,7 @@ impl SessionStore for SessionStorage {
                     .map(|(k, v)| (k.clone(), v.clone()))
                     .collect(),
             )),
-            expiry_date: Set(record.expiry_date.unix_timestamp().to_string()),
+            expiry_date: Set(record.expiry_date.unix_timestamp()),
             ..Default::default()
         })
         .exec(&self.db)
@@ -141,7 +141,7 @@ impl SessionStore for SessionStorage {
                     .map(|(k, v)| (k.clone(), v.clone()))
                     .collect(),
             )),
-            expiry_date: Set(record.expiry_date.unix_timestamp().to_string()),
+            expiry_date: Set(record.expiry_date.unix_timestamp()),
             ..Default::default()
         })
         .filter(samey_session::Column::SessionId.eq(record.id.to_string()))
@@ -175,20 +175,9 @@ impl SessionStore for SessionStorage {
                     .iter()
                     .map(|(k, v)| (k.clone(), v.clone()))
                     .collect(),
-                expiry_date: match session.expiry_date.parse() {
-                    Ok(timestamp) => {
-                        OffsetDateTime::from_unix_timestamp(timestamp).map_err(|_| {
-                            session_store::Error::Backend(
-                                "Invalid timestamp for expiry date".into(),
-                            )
-                        })?
-                    }
-                    Err(_) => {
-                        return Err(session_store::Error::Backend(
-                            "Failed to parse session expiry date".into(),
-                        ));
-                    }
-                },
+                expiry_date: OffsetDateTime::from_unix_timestamp(session.expiry_date).map_err(
+                    |_| session_store::Error::Backend("Invalid timestamp for expiry date".into()),
+                )?,
             },
             None => return Ok(None),
         };

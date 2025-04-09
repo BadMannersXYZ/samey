@@ -20,7 +20,6 @@
             hx-trigger="input changed delay:400ms"
             hx-target="next .tags-autocomplete"
             hx-on::after-settle="this.focus(); this.setSelectionRange(-1, -1);"
-            value=""
             autofocus
           />
           <ul class="tags-autocomplete" id="search-autocomplete"></ul>
@@ -40,7 +39,6 @@
             hx-trigger="input changed delay:400ms"
             hx-target="next .tags-autocomplete"
             hx-on::after-settle="this.focus(); this.setSelectionRange(-1, -1);"
-            value=""
           />
           <ul class="tags-autocomplete" id="upload-autocomplete"></ul>
           <input
@@ -49,6 +47,13 @@
             name="media-file"
             accept=".jpg, .jpeg, .png, .webp, .gif"
           />
+          <button type="submit">Submit</button>
+        </form>
+      </article>
+      <article>
+        <h2>Create pool</h2>
+        <form method="post" action="/pool">
+          <input class="tags" type="text" id="pool-name" name="name" />
           <button type="submit">Submit</button>
         </form>
       </article>

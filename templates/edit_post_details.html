@@ -47,6 +47,10 @@
     <button hx-post="/post_source" hx-target="#sources" hx-swap="beforeend">+</button>
   </div>
   <div>
+    <label>Parent post</label>
+    <input name="parent_post" type="text" value="{% if let Some(parent_id) = post.parent_id %}{{ parent_id }}{% endif %}" />
+  </div>
+  <div>
     <button>Submit</button>
     <button hx-get="/post_details/{{ post.id }}">Cancel</button>
     <button hx-confirm="Are you sure that you want to delete this post? This can't be undone!" hx-delete="/post/{{ post.id }}" hx-target="body" hx-replace-url="/">Delete post</button>

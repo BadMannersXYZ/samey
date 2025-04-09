@@ -35,6 +35,29 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
+                    .table(SameyTag::Table)
+                    .if_not_exists()
+                    .col(pk_auto(SameyTag::Id))
+                    .col(string_len(SameyTag::Name, 100))
+                    .col(string_len_uniq(SameyTag::NormalizedName, 100))
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(SameyPool::Table)
+                    .if_not_exists()
+                    .col(pk_auto(SameyPool::Id))
+                    .col(string_len_uniq(SameyPool::Name, 100))
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
                     .table(SameyPost::Table)
                     .if_not_exists()
                     .col(pk_auto(SameyPost::Id))
@@ -101,18 +124,6 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
-                    .table(SameyTag::Table)
-                    .if_not_exists()
-                    .col(pk_auto(SameyTag::Id))
-                    .col(string_len(SameyTag::Name, 100))
-                    .col(string_len_uniq(SameyTag::NormalizedName, 100))
-                    .to_owned(),
-            )
-            .await?;
-
-        manager
-            .create_table(
-                Table::create()
                     .table(SameyTagPost::Table)
                     .if_not_exists()
                     .col(pk_auto(SameyTagPost::Id))
@@ -142,6 +153,39 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
+        manager
+            .create_table(
+                Table::create()
+                    .table(SameyPoolPost::Table)
+                    .if_not_exists()
+                    .col(pk_auto(SameyPoolPost::Id))
+                    .col(integer(SameyPoolPost::PoolId))
+                    .col(integer(SameyPoolPost::PostId))
+                    .col(float(SameyPoolPost::Position))
+                    .foreign_key(
+                        ForeignKeyCreateStatement::new()
+                            .name("fk-samey_pool_post-samey_pool-pool_id")
+                            .from(SameyPoolPost::Table, SameyPoolPost::PoolId)
+                            .to(SameyPool::Table, SameyPool::Id)
+                            .on_delete(ForeignKeyAction::Cascade),
+                    )
+                    .foreign_key(
+                        ForeignKeyCreateStatement::new()
+                            .name("fk-samey_pool_post-samey_post-post_id")
+                            .from(SameyPoolPost::Table, SameyPoolPost::PostId)
+                            .to(SameyPost::Table, SameyPost::Id)
+                            .on_delete(ForeignKeyAction::Cascade),
+                    )
+                    .index(
+                        Index::create()
+                            .unique()
+                            .col(SameyPoolPost::PoolId)
+                            .col(SameyPoolPost::PostId),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
         Ok(())
     }
 
@@ -149,11 +193,11 @@ impl MigrationTrait for Migration {
         // Replace the sample below with your own migration scripts
 
         manager
-            .drop_table(Table::drop().table(SameyTagPost::Table).to_owned())
+            .drop_table(Table::drop().table(SameyPoolPost::Table).to_owned())
             .await?;
 
         manager
-            .drop_table(Table::drop().table(SameyTag::Table).to_owned())
+            .drop_table(Table::drop().table(SameyTagPost::Table).to_owned())
             .await?;
 
         manager
@@ -162,6 +206,14 @@ impl MigrationTrait for Migration {
 
         manager
             .drop_table(Table::drop().table(SameyPost::Table).to_owned())
+            .await?;
+
+        manager
+            .drop_table(Table::drop().table(SameyPool::Table).to_owned())
+            .await?;
+
+        manager
+            .drop_table(Table::drop().table(SameyTag::Table).to_owned())
             .await?;
 
         manager
@@ -254,4 +306,22 @@ enum SameyTagPost {
     Id,
     TagId,
     PostId,
+}
+
+#[derive(DeriveIden)]
+enum SameyPool {
+    #[sea_orm(iden = "samey_pool")]
+    Table,
+    Id,
+    Name,
+}
+
+#[derive(DeriveIden)]
+enum SameyPoolPost {
+    #[sea_orm(iden = "samey_pool_post")]
+    Table,
+    Id,
+    PoolId,
+    PostId,
+    Position,
 }

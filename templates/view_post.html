@@ -13,7 +13,7 @@
     <meta property="og:image" content="/files/{{ post.media }}" />
     <meta property="og:image:width" content="{{ post.width }}" />
     <meta property="og:image:height" content="{{ post.height }}" />
-    <!-- <meta property="og:image:alt" content="TO-DO" /> -->
+    <meta property="og:image:alt" content="{{ tags_text }}" />
     <meta
       property="og:description"
       content="{% if let Some(description) = post.description %}{{ description }}{% endif %}"
@@ -34,6 +34,31 @@
       <h2>Details</h2>
       {% include "post_details.html" %}
     </article>
+    {% if let Some(parent_post) = parent_post %}
+    <article id="parent-post">
+      <h2>Parent</h2>
+      <a href="/view/{{ parent_post.id }}" title="{{ parent_post.tags }}">
+        <img src="/files/{{ parent_post.thumbnail }}" />
+        <div>{{ parent_post.rating }}</div>
+      </a>
+    </article>
+    {% else %}
+    <article id="parent-post" hidden></article>
+    {% endif %} {% if !children_posts.is_empty() %}
+    <article>
+      <h2>Child posts</h2>
+      <ul>
+        {% for child_post in children_posts %}
+        <li>
+          <a href="/view/{{ child_post.id }}" title="{{ child_post.tags }}">
+            <img src="/files/{{ child_post.thumbnail }}" />
+            <div>{{ child_post.rating }}</div>
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+    </article>
+    {% endif %}
     <article>
       <h2>Tags</h2>
       <ul id="tags-list">

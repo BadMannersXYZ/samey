@@ -1,4 +1,14 @@
-{% include "post_details.html" %}
+{% include "post_details.html" %} {% if let Some(parent_post) = parent_post %}
+<article id="parent-post" hx-swap-oob="outerHTML">
+  <h2>Parent</h2>
+  <a href="/view/{{ parent_post.id }}" title="{{ parent_post.tags }}">
+    <img src="/files/{{ parent_post.thumbnail }}" />
+    <div>{{ parent_post.rating }}</div>
+  </a>
+</article>
+{% else %}
+<article id="parent-post" hx-swap-oob="outerHTML" hidden></article>
+{% endif %}
 <ul id="tags-list" hx-swap-oob="outerHTML">
   {% for tag in tags %}
   <li>

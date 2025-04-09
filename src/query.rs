@@ -16,16 +16,17 @@ use crate::{
 };
 
 #[derive(Debug, FromQueryResult)]
-pub(crate) struct SearchPost {
+pub(crate) struct PostOverview {
     pub(crate) id: i32,
     pub(crate) thumbnail: String,
     pub(crate) tags: String,
+    pub(crate) rating: String,
 }
 
 pub(crate) fn search_posts(
     tags: Option<&Vec<&str>>,
-    user: Option<User>,
-) -> Selector<SelectModel<SearchPost>> {
+    user: Option<&User>,
+) -> Selector<SelectModel<PostOverview>> {
     let mut include_tags = HashSet::<String>::new();
     let mut exclude_tags = HashSet::<String>::new();
     let mut include_ratings = HashSet::<String>::new();
@@ -47,11 +48,12 @@ pub(crate) fn search_posts(
         }
     }
 
-    let mut query = if include_tags.is_empty() && exclude_tags.is_empty() {
+    let query = if include_tags.is_empty() && exclude_tags.is_empty() {
         let mut query = SameyPost::find()
             .select_only()
             .column(samey_post::Column::Id)
             .column(samey_post::Column::Thumbnail)
+            .column(samey_post::Column::Rating)
             .column_as(
                 Expr::cust("GROUP_CONCAT(\"samey_tag\".\"name\", ' ')"),
                 "tags",
@@ -73,6 +75,7 @@ pub(crate) fn search_posts(
             .select_only()
             .column(samey_post::Column::Id)
             .column(samey_post::Column::Thumbnail)
+            .column(samey_post::Column::Rating)
             .column_as(
                 Expr::cust("GROUP_CONCAT(\"samey_tag\".\"name\", ' ')"),
                 "tags",
@@ -130,20 +133,10 @@ pub(crate) fn search_posts(
         query
     };
 
-    query = match user {
-        None => query.filter(samey_post::Column::IsPublic.into_simple_expr()),
-        Some(user) if !user.is_admin => query.filter(
-            Condition::any()
-                .add(samey_post::Column::IsPublic.into_simple_expr())
-                .add(samey_post::Column::UploaderId.eq(user.id)),
-        ),
-        _ => query,
-    };
-
-    query
+    filter_by_user(query, user)
         .group_by(samey_post::Column::Id)
         .order_by_desc(samey_post::Column::Id)
-        .into_model::<SearchPost>()
+        .into_model::<PostOverview>()
 }
 
 pub(crate) fn get_tags_for_post(post_id: i32) -> Select<SameyTag> {
@@ -151,4 +144,16 @@ pub(crate) fn get_tags_for_post(post_id: i32) -> Select<SameyTag> {
         .inner_join(SameyTagPost)
         .filter(samey_tag_post::Column::PostId.eq(post_id))
         .order_by_asc(samey_tag::Column::Name)
+}
+
+pub(crate) fn filter_by_user(query: Select<SameyPost>, user: Option<&User>) -> Select<SameyPost> {
+    match user {
+        None => query.filter(samey_post::Column::IsPublic.into_simple_expr()),
+        Some(user) if !user.is_admin => query.filter(
+            Condition::any()
+                .add(samey_post::Column::IsPublic.into_simple_expr())
+                .add(samey_post::Column::UploaderId.eq(user.id)),
+        ),
+        _ => query,
+    }
 }
