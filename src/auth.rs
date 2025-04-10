@@ -133,7 +133,16 @@ impl SessionStore for SessionStorage {
     }
 
     async fn save(&self, record: &Record) -> session_store::Result<()> {
+        let session = SameySession::find()
+            .filter(samey_session::Column::SessionId.eq(record.id.to_string()))
+            .one(&self.db)
+            .await
+            .map_err(|_| session_store::Error::Backend("Failed to find session".into()))?
+            .ok_or(session_store::Error::Backend(
+                "No corresponding session found".into(),
+            ))?;
         SameySession::update(samey_session::ActiveModel {
+            id: Set(session.id),
             data: Set(sea_orm::JsonValue::Object(
                 record
                     .data
@@ -144,7 +153,6 @@ impl SessionStore for SessionStorage {
             expiry_date: Set(record.expiry_date.unix_timestamp()),
             ..Default::default()
         })
-        .filter(samey_session::Column::SessionId.eq(record.id.to_string()))
         .exec(&self.db)
         .await
         .map_err(|_| session_store::Error::Backend("Failed to update session".into()))?;

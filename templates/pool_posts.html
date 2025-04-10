@@ -1,0 +1,25 @@
+<div id="pool-posts">
+  {% if posts.is_empty() %}
+  <span>No posts in pool.</span>
+  {% else %}
+  <ul>
+    {% for post in posts %}
+    <li class="pool-post" data-position="{{ post.position }}">
+      <a href="/post/{{ post.id }}" title="{{ post.tags }}">
+        <img src="/files/{{ post.thumbnail }}" />
+        <div>{{ post.rating | upper }}</div>
+      </a>
+      {% if can_edit %}
+      <button
+        hx-delete="/pool_post/{{ post.pool_post_id }}"
+        hx-target="closest .pool-post"
+        hx-swap="outerHTML"
+      >
+        Remove
+      </button>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>

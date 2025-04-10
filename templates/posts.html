@@ -43,7 +43,7 @@
         {% for post in posts %}
         <li>
           <a
-            href="{% if let Some(tags_text) = tags_text %}/view/{{ post.id }}?tags={{ tags_text.replace(' ', "+") }}{% else %}/view/{{ post.id }}{% endif %}"
+            href="{% if let Some(tags_text) = tags_text %}/post/{{ post.id }}?tags={{ tags_text.replace(' ', "+") }}{% else %}/post/{{ post.id }}{% endif %}"
             title="{{ post.tags }}"
           >
             <img src="/files/{{ post.thumbnail }}" />

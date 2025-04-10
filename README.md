@@ -5,10 +5,11 @@ Sam's small image board. Currently a WIP.
 ## TODO
 
 - [ ] Pools
+- [ ] Config
 - [ ] Video support
 - [ ] Cleanup/fixup background tasks
 - [ ] CSS
-- [ ] CLI, env vars, logging...
+- [ ] Cleanup, CLI, env vars, logging, better errors...
 
 ## Running in development
 

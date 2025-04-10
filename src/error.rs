@@ -25,6 +25,8 @@ pub enum SameyError {
     Authentication(String),
     #[error("Not allowed")]
     Forbidden,
+    #[error("Bad request: {0}")]
+    BadRequest(String),
     #[error("Internal error: {0}")]
     Other(String),
 }
@@ -42,7 +44,7 @@ impl IntoResponse for SameyError {
             | SameyError::Other(_) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong!").into_response()
             }
-            SameyError::Multipart(_) => {
+            SameyError::Multipart(_) | SameyError::BadRequest(_) => {
                 (StatusCode::BAD_REQUEST, "Invalid request").into_response()
             }
             SameyError::NotFound => (StatusCode::NOT_FOUND, "Resource not found").into_response(),

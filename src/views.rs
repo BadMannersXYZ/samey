@@ -17,7 +17,8 @@ use itertools::Itertools;
 use migration::{Expr, OnConflict};
 use rand::Rng;
 use sea_orm::{
-    ActiveValue::Set, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect,
+    ActiveValue::Set, ColumnTrait, Condition, EntityTrait, FromQueryResult, IntoSimpleExpr,
+    ModelTrait, PaginatorTrait, QueryFilter, QuerySelect,
 };
 use serde::Deserialize;
 use tokio::task::spawn_blocking;
@@ -26,11 +27,13 @@ use crate::{
     AppState, NEGATIVE_PREFIX, RATING_PREFIX,
     auth::{AuthSession, Credentials, User},
     entities::{
-        prelude::{SameyPost, SameyPostSource, SameyTag, SameyTagPost},
-        samey_post, samey_post_source, samey_tag, samey_tag_post,
+        prelude::{SameyPool, SameyPoolPost, SameyPost, SameyPostSource, SameyTag, SameyTagPost},
+        samey_pool, samey_pool_post, samey_post, samey_post_source, samey_tag, samey_tag_post,
     },
     error::SameyError,
-    query::{PostOverview, filter_by_user, get_tags_for_post, search_posts},
+    query::{
+        PoolPost, PostOverview, filter_by_user, get_posts_in_pool, get_tags_for_post, search_posts,
+    },
 };
 
 const MAX_THUMBNAIL_DIMENSION: u32 = 192;
@@ -195,7 +198,6 @@ pub(crate) async fn upload(
             thumbnail: Set(thumbnail_file),
             title: Set(None),
             description: Set(None),
-            is_public: Set(false),
             rating: Set("u".to_owned()),
             uploaded_at: Set(Utc::now().naive_utc()),
             parent_id: Set(None),
@@ -218,7 +220,7 @@ pub(crate) async fn upload(
         .exec(&db)
         .await?;
 
-        Ok(Redirect::to(&format!("/view/{}", uploaded_post)))
+        Ok(Redirect::to(&format!("/post/{}", uploaded_post)))
     } else {
         Err(SameyError::Other("Missing parameters for upload".into()))
     }
@@ -423,6 +425,264 @@ pub(crate) async fn posts_page(
         }
         .render()?,
     ))
+}
+
+// Pool views
+
+pub(crate) async fn get_pools(
+    state: State<AppState>,
+    auth_session: AuthSession,
+) -> Result<impl IntoResponse, SameyError> {
+    get_pools_page(state, auth_session, Path(1)).await
+}
+
+#[derive(Template)]
+#[template(path = "pools.html")]
+struct GetPoolsTemplate {
+    pools: Vec<samey_pool::Model>,
+    page: u32,
+    page_count: u64,
+}
+
+pub(crate) async fn get_pools_page(
+    State(AppState { db, .. }): State<AppState>,
+    auth_session: AuthSession,
+    Path(page): Path<u32>,
+) -> Result<impl IntoResponse, SameyError> {
+    let query = match auth_session.user {
+        None => SameyPool::find().filter(samey_pool::Column::IsPublic.into_simple_expr()),
+        Some(user) if user.is_admin => SameyPool::find(),
+        Some(user) => SameyPool::find().filter(
+            Condition::any()
+                .add(samey_pool::Column::IsPublic.into_simple_expr())
+                .add(samey_pool::Column::UploaderId.eq(user.id)),
+        ),
+    };
+
+    let pagination = query.paginate(&db, 25);
+    let page_count = pagination.num_pages().await?;
+
+    let pools = pagination.fetch_page(page.saturating_sub(1) as u64).await?;
+
+    Ok(Html(
+        GetPoolsTemplate {
+            pools,
+            page,
+            page_count,
+        }
+        .render()?,
+    ))
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct CreatePoolForm {
+    pool: String,
+}
+
+pub(crate) async fn create_pool(
+    State(AppState { db, .. }): State<AppState>,
+    auth_session: AuthSession,
+    Form(body): Form<CreatePoolForm>,
+) -> Result<impl IntoResponse, SameyError> {
+    let user = match auth_session.user {
+        Some(user) => user,
+        None => return Err(SameyError::Forbidden),
+    };
+
+    let pool_id = SameyPool::insert(samey_pool::ActiveModel {
+        name: Set(body.pool),
+        uploader_id: Set(user.id),
+        ..Default::default()
+    })
+    .exec(&db)
+    .await?
+    .last_insert_id;
+
+    Ok(Redirect::to(&format!("/pool/{}", pool_id)))
+}
+
+#[derive(Template)]
+#[template(path = "pool.html")]
+struct ViewPoolTemplate {
+    pool: samey_pool::Model,
+    posts: Vec<PoolPost>,
+    can_edit: bool,
+}
+
+pub(crate) async fn view_pool(
+    State(AppState { db, .. }): State<AppState>,
+    auth_session: AuthSession,
+    Path(pool_id): Path<u32>,
+) -> Result<impl IntoResponse, SameyError> {
+    let pool_id = pool_id as i32;
+    let pool = SameyPool::find_by_id(pool_id)
+        .one(&db)
+        .await?
+        .ok_or(SameyError::NotFound)?;
+
+    let can_edit = match auth_session.user.as_ref() {
+        None => false,
+        Some(user) => user.is_admin || pool.uploader_id == user.id,
+    };
+
+    if !pool.is_public && !can_edit {
+        return Err(SameyError::NotFound);
+    }
+
+    let posts = get_posts_in_pool(pool_id, auth_session.user.as_ref())
+        .all(&db)
+        .await?;
+
+    Ok(Html(
+        ViewPoolTemplate {
+            pool,
+            can_edit,
+            posts,
+        }
+        .render()?,
+    ))
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct ChangePoolVisibilityForm {
+    is_public: Option<String>,
+}
+
+pub(crate) async fn change_pool_visibility(
+    State(AppState { db, .. }): State<AppState>,
+    auth_session: AuthSession,
+    Path(pool_id): Path<u32>,
+    Form(body): Form<ChangePoolVisibilityForm>,
+) -> Result<impl IntoResponse, SameyError> {
+    let pool_id = pool_id as i32;
+    let pool = SameyPool::find_by_id(pool_id)
+        .one(&db)
+        .await?
+        .expect("Pool for samey_pool_post must exist");
+
+    let can_edit = match auth_session.user.as_ref() {
+        None => false,
+        Some(user) => user.is_admin || pool.uploader_id == user.id,
+    };
+
+    if !can_edit {
+        return Err(SameyError::Forbidden);
+    }
+
+    SameyPool::update(samey_pool::ActiveModel {
+        id: Set(pool.id),
+        is_public: Set(body.is_public.is_some()),
+        ..Default::default()
+    })
+    .exec(&db)
+    .await?;
+
+    Ok("")
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct AddPostToPoolForm {
+    post_id: i32,
+}
+
+#[derive(Debug, FromQueryResult)]
+pub(crate) struct PoolWithMaxPosition {
+    id: i32,
+    uploader_id: i32,
+    max_position: Option<f32>,
+}
+
+#[derive(Template)]
+#[template(path = "add_post_to_pool.html")]
+struct AddPostToPoolTemplate {
+    posts: Vec<PoolPost>,
+    can_edit: bool,
+}
+
+pub(crate) async fn add_post_to_pool(
+    State(AppState { db, .. }): State<AppState>,
+    auth_session: AuthSession,
+    Path(pool_id): Path<u32>,
+    Form(body): Form<AddPostToPoolForm>,
+) -> Result<impl IntoResponse, SameyError> {
+    let pool = SameyPool::find_by_id(pool_id as i32)
+        .select_only()
+        .column(samey_pool::Column::Id)
+        .column(samey_pool::Column::UploaderId)
+        .column_as(samey_pool_post::Column::Position.max(), "max_position")
+        .left_join(SameyPoolPost)
+        .group_by(samey_pool::Column::Id)
+        .into_model::<PoolWithMaxPosition>()
+        .one(&db)
+        .await?
+        .ok_or(SameyError::NotFound)?;
+
+    let can_edit_pool = match auth_session.user.as_ref() {
+        None => false,
+        Some(user) => user.is_admin || pool.uploader_id == user.id,
+    };
+
+    if !can_edit_pool {
+        return Err(SameyError::Forbidden);
+    }
+
+    let post = filter_by_user(
+        SameyPost::find_by_id(body.post_id),
+        auth_session.user.as_ref(),
+    )
+    .one(&db)
+    .await?
+    .ok_or(SameyError::NotFound)?;
+
+    SameyPoolPost::insert(samey_pool_post::ActiveModel {
+        pool_id: Set(pool.id),
+        post_id: Set(post.id),
+        position: Set(pool.max_position.unwrap_or(-1.0).floor() + 1.0),
+        ..Default::default()
+    })
+    .exec(&db)
+    .await?;
+
+    let posts = get_posts_in_pool(pool.id, auth_session.user.as_ref())
+        .all(&db)
+        .await?;
+
+    Ok(Html(
+        AddPostToPoolTemplate {
+            posts,
+            can_edit: true,
+        }
+        .render()?,
+    ))
+}
+
+pub(crate) async fn remove_pool_post(
+    State(AppState { db, .. }): State<AppState>,
+    auth_session: AuthSession,
+    Path(pool_post_id): Path<u32>,
+) -> Result<impl IntoResponse, SameyError> {
+    let pool_post_id = pool_post_id as i32;
+    let pool_post = SameyPoolPost::find_by_id(pool_post_id)
+        .one(&db)
+        .await?
+        .ok_or(SameyError::NotFound)?;
+    let pool = SameyPool::find_by_id(pool_post.pool_id)
+        .one(&db)
+        .await?
+        .expect("Pool for samey_pool_post must exist");
+
+    let can_edit = match auth_session.user.as_ref() {
+        None => false,
+        Some(user) => user.is_admin || pool.uploader_id == user.id,
+    };
+
+    if !can_edit {
+        return Err(SameyError::Forbidden);
+    }
+
+    pool_post.delete(&db).await?;
+
+    Ok("")
 }
 
 // Single post views

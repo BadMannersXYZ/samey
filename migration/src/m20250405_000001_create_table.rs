@@ -22,6 +22,18 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
+                    .table(SameyConfig::Table)
+                    .if_not_exists()
+                    .col(pk_auto(SameyConfig::Id))
+                    .col(string_uniq(SameyConfig::Key))
+                    .col(json(SameyConfig::Data))
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
                     .table(SameyUser::Table)
                     .if_not_exists()
                     .col(pk_auto(SameyUser::Id))
@@ -51,6 +63,15 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(pk_auto(SameyPool::Id))
                     .col(string_len_uniq(SameyPool::Name, 100))
+                    .col(integer(SameyPool::UploaderId))
+                    .col(boolean(SameyPool::IsPublic).default(false))
+                    .foreign_key(
+                        ForeignKeyCreateStatement::new()
+                            .name("fk-samey_pool-samey_user-uploader_id")
+                            .from(SameyPool::Table, SameyPool::UploaderId)
+                            .to(SameyUser::Table, SameyUser::Id)
+                            .on_delete(ForeignKeyAction::Cascade),
+                    )
                     .to_owned(),
             )
             .await?;
@@ -221,6 +242,10 @@ impl MigrationTrait for Migration {
             .await?;
 
         manager
+            .drop_table(Table::drop().table(SameyConfig::Table).to_owned())
+            .await?;
+
+        manager
             .drop_table(Table::drop().table(SameySession::Table).to_owned())
             .await?;
 
@@ -236,6 +261,15 @@ enum SameySession {
     SessionId,
     Data,
     ExpiryDate,
+}
+
+#[derive(DeriveIden)]
+enum SameyConfig {
+    #[sea_orm(iden = "samey_config")]
+    Table,
+    Id,
+    Key,
+    Data,
 }
 
 #[derive(DeriveIden)]
@@ -314,6 +348,8 @@ enum SameyPool {
     Table,
     Id,
     Name,
+    UploaderId,
+    IsPublic,
 }
 
 #[derive(DeriveIden)]

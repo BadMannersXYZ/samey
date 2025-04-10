@@ -2,6 +2,7 @@
 
 pub mod prelude;
 
+pub mod samey_config;
 pub mod samey_pool;
 pub mod samey_pool_post;
 pub mod samey_post;

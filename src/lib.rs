@@ -7,7 +7,6 @@ pub(crate) mod views;
 
 use std::sync::Arc;
 
-use auth::SessionStorage;
 use axum::{
     Router,
     extract::DefaultBodyLimit,
@@ -20,13 +19,14 @@ use tokio::fs;
 use tower_http::services::ServeDir;
 use tower_sessions::SessionManagerLayer;
 
-use crate::auth::Backend;
+use crate::auth::{Backend, SessionStorage};
 use crate::entities::{prelude::SameyUser, samey_user};
 pub use crate::error::SameyError;
 use crate::views::{
-    add_post_source, delete_post, edit_post_details, get_full_media, get_media, index, login,
-    logout, post_details, posts, posts_page, remove_field, search_tags, select_tag,
-    submit_post_details, upload, view_post,
+    add_post_source, add_post_to_pool, change_pool_visibility, create_pool, delete_post,
+    edit_post_details, get_full_media, get_media, get_pools, get_pools_page, index, login, logout,
+    post_details, posts, posts_page, remove_field, remove_pool_post, search_tags, select_tag,
+    submit_post_details, upload, view_pool, view_post,
 };
 
 pub(crate) const NEGATIVE_PREFIX: &str = "-";
@@ -67,25 +67,39 @@ pub async fn get_router(db: DatabaseConnection, files_dir: &str) -> Result<Route
     let auth_layer = AuthManagerLayerBuilder::new(Backend::new(db), session_layer).build();
 
     Ok(Router::new()
+        // Auth routes
         .route("/login", post(login))
         .route("/logout", get(logout))
+        // Tags routes
+        .route("/search_tags", post(search_tags))
+        .route("/select_tag", post(select_tag))
+        // Post routes
         .route(
             "/upload",
             post(upload).layer(DefaultBodyLimit::max(100_000_000)),
         )
-        .route("/search_tags", post(search_tags))
-        .route("/select_tag", post(select_tag))
-        .route("/posts", get(posts))
-        .route("/posts/{page}", get(posts_page))
-        .route("/view/{post_id}", get(view_post))
-        .route("/post/{post_id}", delete(delete_post))
+        .route("/post/{post_id}", get(view_post).delete(delete_post))
         .route("/post_details/{post_id}/edit", get(edit_post_details))
-        .route("/post_details/{post_id}", get(post_details))
-        .route("/post_details/{post_id}", put(submit_post_details))
+        .route(
+            "/post_details/{post_id}",
+            get(post_details).put(submit_post_details),
+        )
         .route("/post_source", post(add_post_source))
-        .route("/remove", delete(remove_field))
         .route("/media/{post_id}/full", get(get_full_media))
         .route("/media/{post_id}", get(get_media))
+        // Pool routes
+        .route("/pools", get(get_pools))
+        .route("/pools/{page}", get(get_pools_page))
+        .route("/pool", post(create_pool))
+        .route("/pool/{pool_id}", get(view_pool))
+        .route("/pool/{pool_id}/public", put(change_pool_visibility))
+        .route("/pool/{pool_id}/post", post(add_post_to_pool))
+        .route("/pool_post/{pool_post_id}", delete(remove_pool_post))
+        // Search routes
+        .route("/posts", get(posts))
+        .route("/posts/{page}", get(posts_page))
+        // Other routes
+        .route("/remove", delete(remove_field))
         .route("/", get(index))
         .with_state(state)
         .nest_service("/files", ServeDir::new(files_dir))

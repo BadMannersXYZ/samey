@@ -8,6 +8,7 @@
   </head>
   <body>
     <main>
+      <h1>Samey</h1>
       <article>
         <h2>Search</h2>
         <form method="get" action="/posts/1">
@@ -27,6 +28,10 @@
           <button type="submit">Search</button>
         </form>
       </article>
+      <article>
+        <a href="/posts/1">Posts</a>
+        <a href="/pools/1">Pools</a>
+      </article>
       {% if let Some(user) = user %}
       <article>
         <h2>Upload media</h2>
@@ -37,8 +42,9 @@
             id="upload-tags"
             name="tags"
             hx-post="/search_tags"
-            hx-trigger="input changed delay:400ms"
+            hx-trigger="input changed"
             hx-target="next .tags-autocomplete"
+            hx-vals="js:{selection_end: event.target.selectionEnd}"
             hx-on::after-settle="this.focus(); this.setSelectionRange(-1, -1);"
           />
           <ul class="tags-autocomplete" id="upload-autocomplete"></ul>
@@ -54,7 +60,13 @@
       <article>
         <h2>Create pool</h2>
         <form method="post" action="/pool">
-          <input class="tags" type="text" id="pool-name" name="name" />
+          <input
+            class="pool"
+            type="text"
+            id="pool"
+            name="pool"
+            maxlength="100"
+          />
           <button type="submit">Submit</button>
         </form>
       </article>

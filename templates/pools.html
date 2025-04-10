@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <title>Pools - Samey</title>
+  </head>
+  <body>
+    <main>
+      <h1>Viewing pools</h1>
+      {% if pools.is_empty() %}
+      <div>No pools found!</div>
+      {% else %}
+      <ul>
+        {% for pool in pools %}
+        <li>
+          <a href="/pool/{{ pool.id }}"> {{ pool.name }} </a>
+        </li>
+        {% endfor %}
+      </ul>
+      <div>Page {{ page }} of {{ page_count }}</div>
+      {% endif %}
+    </main>
+  </body>
+</html>

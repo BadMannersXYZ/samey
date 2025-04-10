@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script src=" https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js "></script>
+    <title>Pool - {{ pool.name }} - Samey</title>
+    <meta property="og:title" content="{{ pool.name }}" />
+    <meta property="og:url" content="/pool/{{ pool.id }}" />
+    <meta property="twitter:title" content="{{ pool.name }}" />
+    <meta
+      property="og:description"
+      content="Pool with {{ posts.len() }} post(s)."
+    />
+    {% if let Some(post) = posts.first() %}
+    <meta property="og:image" content="/files/{{ post.thumbnail }}" />
+    <meta property="twitter:image:src" content="/files/{{ post.thumbnail }}" />
+    {% endif %}
+  </head>
+  <body>
+    <main>
+      <h1>Pool - {{ pool.name }}</h1>
+    </main>
+    <article>
+      <h2>Posts</h2>
+      {% include "pool_posts.html" %}
+    </article>
+    {% if can_edit %}
+    <article>
+      <form
+        hx-post="/pool/{{ pool.id }}/post"
+        hx-target="#pool-posts"
+        hx-swap="outerHTML"
+      >
+        <div>
+          <label>Add post</label>
+          <input
+            id="add-post-input"
+            name="post_id"
+            type="text"
+            pattern="[0-9]*"
+          />
+          <button>Add</button>
+        </div>
+      </form>
+      <div>
+        <label>Is public pool?</label>
+        <input
+          name="is_public"
+          type="checkbox"
+          hx-put="/pool/{{ pool.id }}/public"
+          {%
+          if
+          pool.is_public
+          %}checked{%
+          endif
+          %}
+          value="true"
+        />
+      </div>
+    </article>
+    {% endif %}
+  </body>
+</html>

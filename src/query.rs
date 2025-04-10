@@ -10,8 +10,8 @@ use crate::{
     NEGATIVE_PREFIX, RATING_PREFIX,
     auth::User,
     entities::{
-        prelude::{SameyPost, SameyTag, SameyTagPost},
-        samey_post, samey_tag, samey_tag_post,
+        prelude::{SameyPoolPost, SameyPost, SameyTag, SameyTagPost},
+        samey_pool_post, samey_post, samey_tag, samey_tag_post,
     },
 };
 
@@ -146,14 +146,53 @@ pub(crate) fn get_tags_for_post(post_id: i32) -> Select<SameyTag> {
         .order_by_asc(samey_tag::Column::Name)
 }
 
+#[derive(Debug, FromQueryResult)]
+pub(crate) struct PoolPost {
+    pub(crate) id: i32,
+    pub(crate) thumbnail: String,
+    pub(crate) rating: String,
+    pub(crate) pool_post_id: i32,
+    pub(crate) position: f32,
+    pub(crate) tags: String,
+}
+
+pub(crate) fn get_posts_in_pool(
+    pool_id: i32,
+    user: Option<&User>,
+) -> Selector<SelectModel<PoolPost>> {
+    filter_by_user(
+        SameyPost::find()
+            .column(samey_post::Column::Id)
+            .column(samey_post::Column::Thumbnail)
+            .column(samey_post::Column::Rating)
+            .column_as(samey_pool_post::Column::Id, "pool_post_id")
+            .column(samey_pool_post::Column::Position)
+            .column_as(
+                Expr::cust("GROUP_CONCAT(\"samey_tag\".\"name\", ' ')"),
+                "tags",
+            )
+            .inner_join(SameyPoolPost)
+            .inner_join(SameyTagPost)
+            .join(
+                sea_orm::JoinType::InnerJoin,
+                samey_tag_post::Relation::SameyTag.def(),
+            )
+            .filter(samey_pool_post::Column::PoolId.eq(pool_id)),
+        user,
+    )
+    .group_by(samey_post::Column::Id)
+    .order_by_asc(samey_pool_post::Column::Position)
+    .into_model::<PoolPost>()
+}
+
 pub(crate) fn filter_by_user(query: Select<SameyPost>, user: Option<&User>) -> Select<SameyPost> {
     match user {
         None => query.filter(samey_post::Column::IsPublic.into_simple_expr()),
-        Some(user) if !user.is_admin => query.filter(
+        Some(user) if user.is_admin => query,
+        Some(user) => query.filter(
             Condition::any()
                 .add(samey_post::Column::IsPublic.into_simple_expr())
                 .add(samey_post::Column::UploaderId.eq(user.id)),
         ),
-        _ => query,
     }
 }
