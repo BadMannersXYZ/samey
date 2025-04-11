@@ -2,9 +2,16 @@
   {% if posts.is_empty() %}
   <span>No posts in pool.</span>
   {% else %}
-  <ul>
+  <ul
+    class="sortable"
+    hx-put="/pool/{{ pool.id }}/sort"
+    hx-trigger="end"
+    hx-vals="js:{old_index: event.oldIndex, new_index: event.newIndex}"
+    hx-target="#pool-posts"
+    hx-swap="outerHTML"
+  >
     {% for post in posts %}
-    <li class="pool-post" data-position="{{ post.position }}">
+    <li class="pool-post">
       <a href="/post/{{ post.id }}" title="{{ post.tags }}">
         <img src="/files/{{ post.thumbnail }}" />
         <div>{{ post.rating | upper }}</div>

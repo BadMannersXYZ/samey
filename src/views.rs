@@ -512,9 +512,8 @@ struct ViewPoolTemplate {
 pub(crate) async fn view_pool(
     State(AppState { db, .. }): State<AppState>,
     auth_session: AuthSession,
-    Path(pool_id): Path<u32>,
+    Path(pool_id): Path<i32>,
 ) -> Result<impl IntoResponse, SameyError> {
-    let pool_id = pool_id as i32;
     let pool = SameyPool::find_by_id(pool_id)
         .one(&db)
         .await?
@@ -551,10 +550,9 @@ pub(crate) struct ChangePoolVisibilityForm {
 pub(crate) async fn change_pool_visibility(
     State(AppState { db, .. }): State<AppState>,
     auth_session: AuthSession,
-    Path(pool_id): Path<u32>,
+    Path(pool_id): Path<i32>,
     Form(body): Form<ChangePoolVisibilityForm>,
 ) -> Result<impl IntoResponse, SameyError> {
-    let pool_id = pool_id as i32;
     let pool = SameyPool::find_by_id(pool_id)
         .one(&db)
         .await?
@@ -595,6 +593,7 @@ pub(crate) struct PoolWithMaxPosition {
 #[derive(Template)]
 #[template(path = "add_post_to_pool.html")]
 struct AddPostToPoolTemplate {
+    pool: PoolWithMaxPosition,
     posts: Vec<PoolPost>,
     can_edit: bool,
 }
@@ -602,10 +601,10 @@ struct AddPostToPoolTemplate {
 pub(crate) async fn add_post_to_pool(
     State(AppState { db, .. }): State<AppState>,
     auth_session: AuthSession,
-    Path(pool_id): Path<u32>,
+    Path(pool_id): Path<i32>,
     Form(body): Form<AddPostToPoolForm>,
 ) -> Result<impl IntoResponse, SameyError> {
-    let pool = SameyPool::find_by_id(pool_id as i32)
+    let pool = SameyPool::find_by_id(pool_id)
         .select_only()
         .column(samey_pool::Column::Id)
         .column(samey_pool::Column::UploaderId)
@@ -637,7 +636,7 @@ pub(crate) async fn add_post_to_pool(
     SameyPoolPost::insert(samey_pool_post::ActiveModel {
         pool_id: Set(pool.id),
         post_id: Set(post.id),
-        position: Set(pool.max_position.unwrap_or(-1.0).floor() + 1.0),
+        position: Set(pool.max_position.unwrap_or(0.0).floor() + 1.0),
         ..Default::default()
     })
     .exec(&db)
@@ -649,6 +648,7 @@ pub(crate) async fn add_post_to_pool(
 
     Ok(Html(
         AddPostToPoolTemplate {
+            pool,
             posts,
             can_edit: true,
         }
@@ -659,9 +659,8 @@ pub(crate) async fn add_post_to_pool(
 pub(crate) async fn remove_pool_post(
     State(AppState { db, .. }): State<AppState>,
     auth_session: AuthSession,
-    Path(pool_post_id): Path<u32>,
+    Path(pool_post_id): Path<i32>,
 ) -> Result<impl IntoResponse, SameyError> {
-    let pool_post_id = pool_post_id as i32;
     let pool_post = SameyPoolPost::find_by_id(pool_post_id)
         .one(&db)
         .await?
@@ -685,6 +684,85 @@ pub(crate) async fn remove_pool_post(
     Ok("")
 }
 
+#[derive(Debug, Deserialize)]
+pub(crate) struct SortPoolForm {
+    old_index: usize,
+    new_index: usize,
+}
+
+#[derive(Template)]
+#[template(path = "pool_posts.html")]
+struct PoolPostsTemplate {
+    pool: samey_pool::Model,
+    posts: Vec<PoolPost>,
+    can_edit: bool,
+}
+
+pub(crate) async fn sort_pool(
+    State(AppState { db, .. }): State<AppState>,
+    auth_session: AuthSession,
+    Path(pool_id): Path<i32>,
+    Form(body): Form<SortPoolForm>,
+) -> Result<impl IntoResponse, SameyError> {
+    let pool = SameyPool::find_by_id(pool_id)
+        .one(&db)
+        .await?
+        .ok_or(SameyError::NotFound)?;
+
+    let can_edit = match auth_session.user.as_ref() {
+        None => false,
+        Some(user) => user.is_admin || pool.uploader_id == user.id,
+    };
+
+    if !can_edit {
+        return Err(SameyError::Forbidden);
+    }
+
+    if body.old_index != body.new_index {
+        let posts = get_posts_in_pool(pool_id, auth_session.user.as_ref())
+            .all(&db)
+            .await?;
+        let changed_post = posts.get(body.old_index).ok_or(SameyError::NotFound)?;
+        let min_index = if body.new_index < body.old_index {
+            body.new_index.checked_sub(1)
+        } else {
+            Some(body.new_index)
+        };
+        let max_index = if body.new_index == posts.len().saturating_sub(1) {
+            None
+        } else {
+            if body.new_index < body.old_index {
+                Some(body.new_index)
+            } else {
+                Some(body.new_index + 1)
+            }
+        };
+        let min = min_index.map(|index| posts[index].position).unwrap_or(0.0);
+        let max = max_index
+            .map(|index| posts[index].position)
+            .unwrap_or_else(|| posts.last().map(|post| post.position).unwrap_or(min) + 2.0);
+        SameyPoolPost::update(samey_pool_post::ActiveModel {
+            id: Set(changed_post.pool_post_id),
+            position: Set((min + max) / 2.0),
+            ..Default::default()
+        })
+        .exec(&db)
+        .await?;
+    }
+
+    let posts = get_posts_in_pool(pool_id, auth_session.user.as_ref())
+        .all(&db)
+        .await?;
+    Ok(Html(
+        PoolPostsTemplate {
+            pool,
+            posts,
+            can_edit: true,
+        }
+        .render()?,
+    ))
+}
+
 // Single post views
 
 #[derive(Template)]
@@ -702,9 +780,9 @@ struct ViewPostTemplate {
 pub(crate) async fn view_post(
     State(AppState { db, .. }): State<AppState>,
     auth_session: AuthSession,
-    Path(post_id): Path<u32>,
+    Path(post_id): Path<i32>,
 ) -> Result<impl IntoResponse, SameyError> {
-    let post_id = post_id as i32;
+    let post_id = post_id;
     let tags = get_tags_for_post(post_id).all(&db).await?;
     let tags_text = tags.iter().map(|tag| &tag.name).join(" ");
 
@@ -796,9 +874,8 @@ struct PostDetailsTemplate {
 pub(crate) async fn post_details(
     State(AppState { db, .. }): State<AppState>,
     auth_session: AuthSession,
-    Path(post_id): Path<u32>,
+    Path(post_id): Path<i32>,
 ) -> Result<impl IntoResponse, SameyError> {
-    let post_id = post_id as i32;
     let sources = SameyPostSource::find()
         .filter(samey_post_source::Column::PostId.eq(post_id))
         .all(&db)
@@ -853,11 +930,9 @@ struct SubmitPostDetailsTemplate {
 pub(crate) async fn submit_post_details(
     State(AppState { db, .. }): State<AppState>,
     auth_session: AuthSession,
-    Path(post_id): Path<u32>,
+    Path(post_id): Path<i32>,
     Form(body): Form<SubmitPostDetailsForm>,
 ) -> Result<impl IntoResponse, SameyError> {
-    let post_id = post_id as i32;
-
     let post = SameyPost::find_by_id(post_id)
         .one(&db)
         .await?
@@ -1000,9 +1075,9 @@ struct EditDetailsTemplate {
 pub(crate) async fn edit_post_details(
     State(AppState { db, .. }): State<AppState>,
     auth_session: AuthSession,
-    Path(post_id): Path<u32>,
+    Path(post_id): Path<i32>,
 ) -> Result<impl IntoResponse, SameyError> {
-    let post = SameyPost::find_by_id(post_id as i32)
+    let post = SameyPost::find_by_id(post_id)
         .one(&db)
         .await?
         .ok_or(SameyError::NotFound)?;
@@ -1026,7 +1101,7 @@ pub(crate) async fn edit_post_details(
         })
         .collect();
 
-    let tags = get_tags_for_post(post_id as i32)
+    let tags = get_tags_for_post(post_id)
         .select_only()
         .column(samey_tag::Column::Name)
         .into_tuple::<String>()
@@ -1072,9 +1147,9 @@ struct GetMediaTemplate {
 pub(crate) async fn get_media(
     State(AppState { db, .. }): State<AppState>,
     auth_session: AuthSession,
-    Path(post_id): Path<u32>,
+    Path(post_id): Path<i32>,
 ) -> Result<impl IntoResponse, SameyError> {
-    let post = SameyPost::find_by_id(post_id as i32)
+    let post = SameyPost::find_by_id(post_id)
         .one(&db)
         .await?
         .ok_or(SameyError::NotFound)?;
@@ -1100,9 +1175,9 @@ struct GetFullMediaTemplate {
 pub(crate) async fn get_full_media(
     State(AppState { db, .. }): State<AppState>,
     auth_session: AuthSession,
-    Path(post_id): Path<u32>,
+    Path(post_id): Path<i32>,
 ) -> Result<impl IntoResponse, SameyError> {
-    let post = SameyPost::find_by_id(post_id as i32)
+    let post = SameyPost::find_by_id(post_id)
         .one(&db)
         .await?
         .ok_or(SameyError::NotFound)?;
@@ -1122,9 +1197,9 @@ pub(crate) async fn get_full_media(
 pub(crate) async fn delete_post(
     State(AppState { db, files_dir }): State<AppState>,
     auth_session: AuthSession,
-    Path(post_id): Path<u32>,
+    Path(post_id): Path<i32>,
 ) -> Result<impl IntoResponse, SameyError> {
-    let post = SameyPost::find_by_id(post_id as i32)
+    let post = SameyPost::find_by_id(post_id)
         .one(&db)
         .await?
         .ok_or(SameyError::NotFound)?;

@@ -26,7 +26,7 @@ use crate::views::{
     add_post_source, add_post_to_pool, change_pool_visibility, create_pool, delete_post,
     edit_post_details, get_full_media, get_media, get_pools, get_pools_page, index, login, logout,
     post_details, posts, posts_page, remove_field, remove_pool_post, search_tags, select_tag,
-    submit_post_details, upload, view_pool, view_post,
+    sort_pool, submit_post_details, upload, view_pool, view_post,
 };
 
 pub(crate) const NEGATIVE_PREFIX: &str = "-";
@@ -94,6 +94,7 @@ pub async fn get_router(db: DatabaseConnection, files_dir: &str) -> Result<Route
         .route("/pool/{pool_id}", get(view_pool))
         .route("/pool/{pool_id}/public", put(change_pool_visibility))
         .route("/pool/{pool_id}/post", post(add_post_to_pool))
+        .route("/pool/{pool_id}/sort", put(sort_pool))
         .route("/pool_post/{pool_post_id}", delete(remove_pool_post))
         // Search routes
         .route("/posts", get(posts))
