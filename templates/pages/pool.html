@@ -1,12 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
-    <script src=" https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js "></script>
     <title>Pool - {{ pool.name }} - {{ application_name }}</title>
-    <meta name="generator" content="Samey {{ env!("CARGO_PKG_VERSION") }}" />
+    {% include "fragments/common_headers.html" %}
+    <script src="/static/sortable.js"></script>
     <meta property="og:title" content="{{ pool.name }}" />
     <meta property="og:url" content="/pool/{{ pool.id }}" />
     <meta property="twitter:title" content="{{ pool.name }}" />
@@ -50,12 +47,13 @@
     {% endif %}
   </head>
   <body>
+    <div><a href="/">&lt; To home</a></div>
     <main>
       <h1>Pool - {{ pool.name }}</h1>
     </main>
     <article>
       <h2>Posts</h2>
-      {% include "pool_posts.html" %}
+      {% include "fragments/pool_posts.html" %}
     </article>
     {% if can_edit %}
     <article>
@@ -68,8 +66,9 @@
           <label>Add post</label>
           <input
             id="add-post-input"
-            name="post_id"
             type="text"
+            name="post_id"
+            placeholder="Post ID"
             pattern="[0-9]*"
           />
           <button>Add</button>

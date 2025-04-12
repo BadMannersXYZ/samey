@@ -39,17 +39,32 @@ use crate::{
     },
     error::SameyError,
     query::{
-        PoolPost, PostOverview, filter_by_user, get_posts_in_pool, get_tags_for_post, search_posts,
+        PoolPost, PostOverview, filter_posts_by_user, get_posts_in_pool, get_tags_for_post,
+        search_posts,
     },
     video::{generate_thumbnail, get_dimensions_for_video},
 };
 
 const MAX_THUMBNAIL_DIMENSION: u32 = 192;
 
+// Filters
+
+mod filters {
+    pub(crate) fn markdown(
+        s: impl std::fmt::Display,
+    ) -> askama::Result<askama::filters::Safe<String>> {
+        let s = s.to_string();
+        let parser = pulldown_cmark::Parser::new(&s);
+        let mut output = String::new();
+        pulldown_cmark::html::push_html(&mut output, parser);
+        Ok(askama::filters::Safe(output))
+    }
+}
+
 // Index view
 
 #[derive(Template)]
-#[template(path = "index.html")]
+#[template(path = "pages/index.html")]
 struct IndexTemplate {
     application_name: String,
     user: Option<User>,
@@ -72,6 +87,27 @@ pub(crate) async fn index(
 }
 
 // Auth views
+
+#[derive(Template)]
+#[template(path = "pages/login.html")]
+struct LoginPageTemplate {
+    application_name: String,
+}
+
+pub(crate) async fn login_page(
+    State(AppState {
+        application_name, ..
+    }): State<AppState>,
+    auth_session: AuthSession,
+) -> Result<impl IntoResponse, SameyError> {
+    if auth_session.user.is_some() {
+        return Ok(Redirect::to("/").into_response());
+    }
+
+    let application_name = application_name.read().await.clone();
+
+    Ok(Html(LoginPageTemplate { application_name }.render()?).into_response())
+}
 
 pub(crate) async fn login(
     mut auth_session: AuthSession,
@@ -98,7 +134,28 @@ pub(crate) async fn logout(mut auth_session: AuthSession) -> Result<impl IntoRes
     Ok(Redirect::to("/"))
 }
 
-// Post upload view
+// Post upload views
+
+#[derive(Template)]
+#[template(path = "pages/upload.html")]
+struct UploadPageTemplate {
+    application_name: String,
+}
+
+pub(crate) async fn upload_page(
+    State(AppState {
+        application_name, ..
+    }): State<AppState>,
+    auth_session: AuthSession,
+) -> Result<impl IntoResponse, SameyError> {
+    if auth_session.user.is_none() {
+        return Err(SameyError::Forbidden);
+    }
+
+    let application_name = application_name.read().await.clone();
+
+    Ok(Html(UploadPageTemplate { application_name }.render()?).into_response())
+}
 
 enum Format {
     Video(&'static str),
@@ -151,34 +208,47 @@ pub(crate) async fn upload(
     let mut thumbnail_file: Option<String> = None;
     let mut thumbnail_width: Option<NonZero<i32>> = None;
     let mut thumbnail_height: Option<NonZero<i32>> = None;
-    let base_path = std::path::Path::new(files_dir.as_ref());
+    let base_path = files_dir.as_ref();
 
     // Read multipart form data
     while let Some(mut field) = multipart.next_field().await.unwrap() {
         match field.name().unwrap() {
             "tags" => {
                 if let Ok(tags) = field.text().await {
-                    let tags: HashSet<String> = tags.split_whitespace().map(String::from).collect();
+                    let tags: HashSet<String> = tags
+                        .split_whitespace()
+                        .filter_map(|tag| {
+                            if tag.starts_with(NEGATIVE_PREFIX) || tag.starts_with(RATING_PREFIX) {
+                                None
+                            } else {
+                                Some(String::from(tag))
+                            }
+                        })
+                        .collect();
                     let normalized_tags: HashSet<String> =
                         tags.iter().map(|tag| tag.to_lowercase()).collect();
-                    SameyTag::insert_many(tags.into_iter().map(|tag| samey_tag::ActiveModel {
-                        normalized_name: Set(tag.to_lowercase()),
-                        name: Set(tag),
-                        ..Default::default()
-                    }))
-                    .on_conflict(
-                        OnConflict::column(samey_tag::Column::NormalizedName)
-                            .do_nothing()
-                            .to_owned(),
-                    )
-                    .exec_without_returning(&db)
-                    .await?;
-                    upload_tags = Some(
-                        SameyTag::find()
-                            .filter(samey_tag::Column::NormalizedName.is_in(normalized_tags))
-                            .all(&db)
-                            .await?,
-                    );
+                    if tags.is_empty() {
+                        upload_tags = Some(vec![]);
+                    } else {
+                        SameyTag::insert_many(tags.into_iter().map(|tag| samey_tag::ActiveModel {
+                            normalized_name: Set(tag.to_lowercase()),
+                            name: Set(tag),
+                            ..Default::default()
+                        }))
+                        .on_conflict(
+                            OnConflict::column(samey_tag::Column::NormalizedName)
+                                .do_nothing()
+                                .to_owned(),
+                        )
+                        .exec_without_returning(&db)
+                        .await?;
+                        upload_tags = Some(
+                            SameyTag::find()
+                                .filter(samey_tag::Column::NormalizedName.is_in(normalized_tags))
+                                .all(&db)
+                                .await?,
+                        );
+                    }
                 }
             }
 
@@ -337,17 +407,17 @@ pub(crate) async fn upload(
         .last_insert_id;
 
         // Add tags to post
-        SameyTagPost::insert_many(
-            upload_tags
-                .into_iter()
-                .map(|tag| samey_tag_post::ActiveModel {
+        if !upload_tags.is_empty() {
+            SameyTagPost::insert_many(upload_tags.into_iter().map(|tag| {
+                samey_tag_post::ActiveModel {
                     post_id: Set(uploaded_post),
                     tag_id: Set(tag.id),
                     ..Default::default()
-                }),
-        )
-        .exec(&db)
-        .await?;
+                }
+            }))
+            .exec(&db)
+            .await?;
+        }
 
         Ok(Redirect::to(&format!("/post/{}", uploaded_post)))
     } else {
@@ -363,7 +433,7 @@ struct SearchTag {
 }
 
 #[derive(Template)]
-#[template(path = "search_tags.html")]
+#[template(path = "fragments/search_tags.html")]
 struct SearchTagsTemplate {
     tags: Vec<SearchTag>,
     selection_end: usize,
@@ -458,9 +528,9 @@ pub(crate) async fn search_tags(
 }
 
 #[derive(Template)]
-#[template(path = "select_tag.html")]
+#[template(path = "fragments/select_tag.html")]
 struct SelectTagTemplate {
-    tags: String,
+    tags_value: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -475,29 +545,31 @@ pub(crate) async fn select_tag(
 ) -> Result<impl IntoResponse, SameyError> {
     let mut tags = String::new();
     for (tag, _) in body.tags[..body.selection_end].split(' ').tuple_windows() {
-        if !tags.is_empty() {
-            tags.push(' ');
+        if !tag.is_empty() {
+            if !tags.is_empty() {
+                tags.push(' ');
+            }
+            tags.push_str(tag);
         }
-        tags.push_str(tag);
     }
     if !tags.is_empty() {
         tags.push(' ');
     }
     tags.push_str(&body.new_tag);
     for tag in body.tags[body.selection_end..].split(' ') {
-        if !tags.is_empty() {
+        if !tag.is_empty() {
             tags.push(' ');
+            tags.push_str(tag);
         }
-        tags.push_str(tag);
     }
     tags.push(' ');
-    Ok(Html(SelectTagTemplate { tags }.render()?))
+    Ok(Html(SelectTagTemplate { tags_value: tags }.render()?))
 }
 
 // Post list views
 
 #[derive(Template)]
-#[template(path = "posts.html")]
+#[template(path = "pages/posts.html")]
 struct PostsTemplate<'a> {
     application_name: String,
     tags: Option<Vec<&'a str>>,
@@ -541,12 +613,12 @@ pub(crate) async fn posts_page(
     let posts = posts
         .into_iter()
         .map(|post| {
-            let mut tags_vec: Vec<_> = post.tags.split_ascii_whitespace().collect();
-            tags_vec.sort();
-            PostOverview {
-                tags: tags_vec.into_iter().join(" "),
-                ..post
-            }
+            let tags: Option<String> = post.tags.map(|tags| {
+                let mut tags_vec = tags.split_ascii_whitespace().collect::<Vec<&str>>();
+                tags_vec.sort();
+                tags_vec.into_iter().join(" ")
+            });
+            PostOverview { tags, ..post }
         })
         .collect();
 
@@ -565,6 +637,27 @@ pub(crate) async fn posts_page(
 
 // Pool views
 
+#[derive(Template)]
+#[template(path = "pages/create_pool.html")]
+struct CreatePoolPageTemplate {
+    application_name: String,
+}
+
+pub(crate) async fn create_pool_page(
+    State(AppState {
+        application_name, ..
+    }): State<AppState>,
+    auth_session: AuthSession,
+) -> Result<impl IntoResponse, SameyError> {
+    if auth_session.user.is_none() {
+        return Err(SameyError::Forbidden);
+    }
+
+    let application_name = application_name.read().await.clone();
+
+    Ok(Html(CreatePoolPageTemplate { application_name }.render()?).into_response())
+}
+
 pub(crate) async fn get_pools(
     state: State<AppState>,
     auth_session: AuthSession,
@@ -573,7 +666,7 @@ pub(crate) async fn get_pools(
 }
 
 #[derive(Template)]
-#[template(path = "pools.html")]
+#[template(path = "pages/pools.html")]
 struct GetPoolsTemplate {
     application_name: String,
     pools: Vec<samey_pool::Model>,
@@ -645,7 +738,7 @@ pub(crate) async fn create_pool(
 }
 
 #[derive(Template)]
-#[template(path = "pool.html")]
+#[template(path = "pages/pool.html")]
 struct ViewPoolTemplate {
     application_name: String,
     pool: samey_pool::Model,
@@ -734,14 +827,14 @@ pub(crate) struct AddPostToPoolForm {
 }
 
 #[derive(Debug, FromQueryResult)]
-pub(crate) struct PoolWithMaxPosition {
+struct PoolWithMaxPosition {
     id: i32,
     uploader_id: i32,
     max_position: Option<f32>,
 }
 
 #[derive(Template)]
-#[template(path = "add_post_to_pool.html")]
+#[template(path = "fragments/add_post_to_pool.html")]
 struct AddPostToPoolTemplate {
     pool: PoolWithMaxPosition,
     posts: Vec<PoolPost>,
@@ -775,7 +868,7 @@ pub(crate) async fn add_post_to_pool(
         return Err(SameyError::Forbidden);
     }
 
-    let post = filter_by_user(
+    let post = filter_posts_by_user(
         SameyPost::find_by_id(body.post_id),
         auth_session.user.as_ref(),
     )
@@ -841,7 +934,7 @@ pub(crate) struct SortPoolForm {
 }
 
 #[derive(Template)]
-#[template(path = "pool_posts.html")]
+#[template(path = "fragments/pool_posts.html")]
 struct PoolPostsTemplate {
     pool: samey_pool::Model,
     posts: Vec<PoolPost>,
@@ -916,7 +1009,7 @@ pub(crate) async fn sort_pool(
 // Settings views
 
 #[derive(Template)]
-#[template(path = "settings.html")]
+#[template(path = "pages/settings.html")]
 struct SettingsTemplate {
     application_name: String,
 }
@@ -997,32 +1090,34 @@ pub(crate) async fn update_settings(
 // Single post views
 
 #[derive(Template)]
-#[template(path = "view_post.html")]
-struct ViewPostTemplate {
+#[template(path = "pages/view_post.html")]
+struct ViewPostPageTemplate {
     application_name: String,
     post: samey_post::Model,
     tags: Vec<samey_tag::Model>,
-    tags_text: String,
+    tags_text: Option<String>,
+    tags_post: String,
     sources: Vec<samey_post_source::Model>,
     can_edit: bool,
     parent_post: Option<PostOverview>,
     children_posts: Vec<PostOverview>,
 }
 
-pub(crate) async fn view_post(
+pub(crate) async fn view_post_page(
     State(AppState {
         db,
         application_name,
         ..
     }): State<AppState>,
     auth_session: AuthSession,
+    Query(query): Query<PostsQuery>,
     Path(post_id): Path<i32>,
 ) -> Result<impl IntoResponse, SameyError> {
     let application_name = application_name.read().await.clone();
 
     let post_id = post_id;
     let tags = get_tags_for_post(post_id).all(&db).await?;
-    let tags_text = tags.iter().map(|tag| &tag.name).join(" ");
+    let tags_post = tags.iter().map(|tag| &tag.name).join(" ");
 
     let sources = SameyPostSource::find()
         .filter(samey_post_source::Column::PostId.eq(post_id))
@@ -1035,19 +1130,21 @@ pub(crate) async fn view_post(
         .ok_or(SameyError::NotFound)?;
 
     let parent_post = if let Some(parent_id) = post.parent_id {
-        match filter_by_user(SameyPost::find_by_id(parent_id), auth_session.user.as_ref())
+        match filter_posts_by_user(SameyPost::find_by_id(parent_id), auth_session.user.as_ref())
             .one(&db)
             .await?
         {
             Some(parent_post) => Some(PostOverview {
                 id: parent_id,
                 thumbnail: parent_post.thumbnail,
-                tags: get_tags_for_post(post_id)
-                    .all(&db)
-                    .await?
-                    .iter()
-                    .map(|tag| &tag.name)
-                    .join(" "),
+                tags: Some(
+                    get_tags_for_post(post_id)
+                        .all(&db)
+                        .await?
+                        .iter()
+                        .map(|tag| &tag.name)
+                        .join(" "),
+                ),
                 rating: parent_post.rating,
                 media_type: parent_post.media_type,
             }),
@@ -1057,7 +1154,7 @@ pub(crate) async fn view_post(
         None
     };
 
-    let children_posts_models = filter_by_user(
+    let children_posts_models = filter_posts_by_user(
         SameyPost::find().filter(samey_post::Column::ParentId.eq(post_id)),
         auth_session.user.as_ref(),
     )
@@ -1069,12 +1166,14 @@ pub(crate) async fn view_post(
         children_posts.push(PostOverview {
             id: child_post.id,
             thumbnail: child_post.thumbnail,
-            tags: get_tags_for_post(child_post.id)
-                .all(&db)
-                .await?
-                .iter()
-                .map(|tag| &tag.name)
-                .join(" "),
+            tags: Some(
+                get_tags_for_post(child_post.id)
+                    .all(&db)
+                    .await?
+                    .iter()
+                    .map(|tag| &tag.name)
+                    .join(" "),
+            ),
             rating: child_post.rating,
             media_type: child_post.media_type,
         });
@@ -1090,11 +1189,12 @@ pub(crate) async fn view_post(
     }
 
     Ok(Html(
-        ViewPostTemplate {
+        ViewPostPageTemplate {
             application_name,
             post,
             tags,
-            tags_text,
+            tags_text: query.tags,
+            tags_post,
             sources,
             can_edit,
             parent_post,
@@ -1105,7 +1205,7 @@ pub(crate) async fn view_post(
 }
 
 #[derive(Template)]
-#[template(path = "post_details.html")]
+#[template(path = "fragments/post_details.html")]
 struct PostDetailsTemplate {
     post: samey_post::Model,
     sources: Vec<samey_post_source::Model>,
@@ -1159,7 +1259,7 @@ pub(crate) struct SubmitPostDetailsForm {
 }
 
 #[derive(Template)]
-#[template(path = "submit_post_details.html")]
+#[template(path = "fragments/submit_post_details.html")]
 struct SubmitPostDetailsTemplate {
     post: samey_post::Model,
     parent_post: Option<PostOverview>,
@@ -1197,19 +1297,21 @@ pub(crate) async fn submit_post_details(
         description => Some(description.to_owned()),
     };
     let parent_post = if let Some(parent_id) = body.parent_post.trim().parse().ok() {
-        match filter_by_user(SameyPost::find_by_id(parent_id), auth_session.user.as_ref())
+        match filter_posts_by_user(SameyPost::find_by_id(parent_id), auth_session.user.as_ref())
             .one(&db)
             .await?
         {
             Some(parent_post) => Some(PostOverview {
                 id: parent_id,
                 thumbnail: parent_post.thumbnail,
-                tags: get_tags_for_post(post_id)
-                    .all(&db)
-                    .await?
-                    .iter()
-                    .map(|tag| &tag.name)
-                    .join(" "),
+                tags: Some(
+                    get_tags_for_post(post_id)
+                        .all(&db)
+                        .await?
+                        .iter()
+                        .map(|tag| &tag.name)
+                        .join(" "),
+                ),
                 rating: parent_post.rating,
                 media_type: parent_post.media_type,
             }),
@@ -1259,31 +1361,36 @@ pub(crate) async fn submit_post_details(
         .filter(samey_tag_post::Column::PostId.eq(post_id))
         .exec(&db)
         .await?;
-    // TODO: Improve this to not recreate existing tag-post entries (see above)
-    SameyTag::insert_many(tags.into_iter().map(|tag| samey_tag::ActiveModel {
-        normalized_name: Set(tag.to_lowercase()),
-        name: Set(tag),
-        ..Default::default()
-    }))
-    .on_conflict(
-        OnConflict::column(samey_tag::Column::NormalizedName)
-            .do_nothing()
-            .to_owned(),
-    )
-    .exec_without_returning(&db)
-    .await?;
-    let mut upload_tags = SameyTag::find()
-        .filter(samey_tag::Column::NormalizedName.is_in(normalized_tags))
-        .all(&db)
+    let tags = if tags.is_empty() {
+        vec![]
+    } else {
+        // TODO: Improve this to not recreate existing tag-post entries (see above)
+        SameyTag::insert_many(tags.into_iter().map(|tag| samey_tag::ActiveModel {
+            normalized_name: Set(tag.to_lowercase()),
+            name: Set(tag),
+            ..Default::default()
+        }))
+        .on_conflict(
+            OnConflict::column(samey_tag::Column::NormalizedName)
+                .do_nothing()
+                .to_owned(),
+        )
+        .exec_without_returning(&db)
         .await?;
-    SameyTagPost::insert_many(upload_tags.iter().map(|tag| samey_tag_post::ActiveModel {
-        post_id: Set(post_id),
-        tag_id: Set(tag.id),
-        ..Default::default()
-    }))
-    .exec(&db)
-    .await?;
-    upload_tags.sort_by(|a, b| a.name.cmp(&b.name));
+        let mut upload_tags = SameyTag::find()
+            .filter(samey_tag::Column::NormalizedName.is_in(normalized_tags))
+            .all(&db)
+            .await?;
+        SameyTagPost::insert_many(upload_tags.iter().map(|tag| samey_tag_post::ActiveModel {
+            post_id: Set(post_id),
+            tag_id: Set(tag.id),
+            ..Default::default()
+        }))
+        .exec(&db)
+        .await?;
+        upload_tags.sort_by(|a, b| a.name.cmp(&b.name));
+        upload_tags
+    };
 
     let sources = SameyPostSource::find()
         .filter(samey_post_source::Column::PostId.eq(post_id))
@@ -1294,7 +1401,7 @@ pub(crate) async fn submit_post_details(
         SubmitPostDetailsTemplate {
             post,
             sources,
-            tags: upload_tags,
+            tags,
             parent_post,
             can_edit: true,
         }
@@ -1307,7 +1414,7 @@ struct EditPostSource {
 }
 
 #[derive(Template)]
-#[template(path = "edit_post_details.html")]
+#[template(path = "fragments/edit_post_details.html")]
 struct EditDetailsTemplate {
     post: samey_post::Model,
     sources: Vec<EditPostSource>,
@@ -1362,7 +1469,7 @@ pub(crate) async fn edit_post_details(
 }
 
 #[derive(Template)]
-#[template(path = "post_source.html")]
+#[template(path = "fragments/post_source.html")]
 struct AddPostSourceTemplate {
     source: EditPostSource,
 }
@@ -1381,7 +1488,7 @@ pub(crate) async fn remove_field() -> impl IntoResponse {
 }
 
 #[derive(Template)]
-#[template(path = "get_image_media.html")]
+#[template(path = "fragments/get_image_media.html")]
 struct GetMediaTemplate {
     post: samey_post::Model,
 }
@@ -1409,7 +1516,7 @@ pub(crate) async fn get_media(
 }
 
 #[derive(Template)]
-#[template(path = "get_full_image_media.html")]
+#[template(path = "fragments/get_full_image_media.html")]
 struct GetFullMediaTemplate {
     post: samey_post::Model,
 }
@@ -1458,7 +1565,7 @@ pub(crate) async fn delete_post(
     SameyPost::delete_by_id(post.id).exec(&db).await?;
 
     tokio::spawn(async move {
-        let base_path = std::path::Path::new(files_dir.as_ref());
+        let base_path = files_dir.as_ref();
         let _ = std::fs::remove_file(base_path.join(post.media));
         let _ = std::fs::remove_file(base_path.join(post.thumbnail));
     });

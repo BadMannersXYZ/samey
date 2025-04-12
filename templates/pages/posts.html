@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Posts - {{ application_name }}</title>
+    {% include "fragments/common_headers.html" %}
+  </head>
+  <body>
+    <div><a href="/">&lt; To home</a></div>
+    <article>
+      <h2>Search</h2>
+      <form method="get" action="/posts">
+        <input
+          class="tags"
+          type="text"
+          id="search-tags"
+          name="tags"
+          placeholder="Tags"
+          hx-post="/search_tags"
+          hx-trigger="input changed"
+          hx-target="next .tags-autocomplete"
+          hx-vals="js:{selection_end: event.target.selectionEnd}"
+          hx-on::after-settle="this.focus(); this.setSelectionRange(-1, -1);"
+          value="{% if let Some(tags_text) = tags_text %}{{ tags_text }}{% endif %}"
+          autofocus
+        />
+        <ul class="tags-autocomplete" id="search-autocomplete"></ul>
+        <button type="submit">Search</button>
+      </form>
+    </article>
+    {% if let Some(tags) = tags %}
+    {% if !tags.is_empty() %}
+    <article>
+      <h2>Tags</h2>
+      <ul>
+         {% for tag in tags %}
+        <li><a href="/posts?tags={{ tag }}">{{ tag }}</a></li>
+        {% endfor %}
+      </ul>
+    </article>
+    {% endif %}
+    {% endif %}
+    <main>
+      <h1>Posts</h1>
+      {% if posts.is_empty() %}
+      <div>No posts found!</div>
+      {% else %}
+      <div>
+        <ul>
+          {% for post in posts %}
+          <li>
+            <a
+              href="{% if let Some(tags_text) = tags_text %}/post/{{ post.id }}?tags={{ tags_text.replace(' ', "+") }}{% else %}/post/{{ post.id }}{% endif %}"
+              title="{% if let Some(tags) = post.tags %}{{ tags }}{% endif %}"
+            >
+              <img src="/files/{{ post.thumbnail }}" />
+              <div>{{ post.rating | upper }}</div>
+              <div>{{ post.media_type }}</div>
+            </a>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div>
+        <ul>
+          {% for i in 1..=page_count %}
+          <li>
+            {% if i == page as u64 %}
+            <b>{{ i }}</b>
+            {% else %}
+            <a href="{% if let Some(tags_text) = tags_text %}/posts/{{ i }}?tags={{ tags_text.replace(' ', "+") }}{% else %}/posts/{{ i }}{% endif %}">{{ i }}</a>
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+    </main>
+  </body>
+</html>

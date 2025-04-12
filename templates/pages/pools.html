@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Pools - {{ application_name }}</title>
+    {% include "fragments/common_headers.html" %}
+  </head>
+  <body>
+    <div><a href="/">&lt; To home</a></div>
+    <main>
+      <h1>Pools</h1>
+      {% if pools.is_empty() %}
+      <div>No pools found!</div>
+      {% else %}
+      <ul>
+        {% for pool in pools %}
+        <li>
+          <a href="/pool/{{ pool.id }}"> {{ pool.name }} </a>
+        </li>
+        {% endfor %}
+      </ul>
+      <div>
+        <ul>
+          {% for i in 1..=page_count %}
+          <li>
+            {% if i == page as u64 %}
+            <b>{{ i }}</b>
+            {% else %}
+            <a href="/pools/{{ i }}">{{ i }}</a>
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+    </main>
+  </body>
+</html>

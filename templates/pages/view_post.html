@@ -1,11 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     <title>Post #{{ post.id }} - {{ application_name }}</title>
-    <meta name="generator" content="Samey {{ env!("CARGO_PKG_VERSION") }}" />
+    {% include "fragments/common_headers.html" %}
     <meta property="og:site_name" content="{{ application_name }}" />
     <meta
       property="og:title"
@@ -24,13 +21,13 @@
     <meta property="og:image" content="/files/{{ post.media }}" />
     <meta property="og:image:width" content="{{ post.width }}" />
     <meta property="og:image:height" content="{{ post.height }}" />
-    <meta property="og:image:alt" content="{{ tags_text }}" />
+    <meta property="og:image:alt" content="{{ tags_post }}" />
     <meta property="twitter:card" content="summary_large_image" />
     {% when "video" %}
     <meta property="og:video" content="/files/{{ post.media }}" />
     <meta property="og:video:width" content="{{ post.width }}" />
     <meta property="og:video:height" content="{{ post.height }}" />
-    <meta property="og:video:alt" content="{{ tags_text }}" />
+    <meta property="og:video:alt" content="{{ tags_post }}" />
     <meta property="og:video:type" content="video/mp4" />
     <meta property="twitter:card" content="player" />
     <meta name="twitter:player" content="/files/{{ post.media }}" />
@@ -40,22 +37,57 @@
     {% else %} {% endmatch %}
   </head>
   <body>
+    <div><a href="{% if let Some(tags_text) = tags_text %}/posts/1?tags={{ tags_text.replace(' ', "+") }}{% else %}/posts/1{% endif %}">&lt; To posts</a></div>
+    <article>
+      <h2>Search</h2>
+      <form method="get" action="/posts">
+        <input
+          class="tags"
+          type="text"
+          id="search-tags"
+          name="tags"
+          hx-post="/search_tags"
+          hx-trigger="input changed"
+          hx-target="next .tags-autocomplete"
+          hx-vals="js:{selection_end: event.target.selectionEnd}"
+          hx-on::after-settle="this.focus(); this.setSelectionRange(-1, -1);"
+          value="{% if let Some(tags_text) = tags_text %}{{ tags_text }}{% endif %}"
+          autofocus
+        />
+        <ul class="tags-autocomplete" id="search-autocomplete"></ul>
+        <button type="submit">Search</button>
+      </form>
+    </article>
+    <article>
+      <h2>Tags</h2>
+      {% if tags.is_empty() %}
+      <p>No tags in post. Consider adding some!</p>
+      {% else %}
+      <ul id="tags-list">
+        {% for tag in tags %}
+        <li>
+          <a href="/posts?tags={{ tag.name }}">{{ tag.name }}</a>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </article>
     <main>
       <h1>View post #{{ post.id }}</h1>
       <div>
         {% match post.media_type.as_ref() %}{% when "image" %}{% include
-        "get_image_media.html" %}{% when "video" %}{% include
-        "get_video_media.html" %}{% else %}{% endmatch %}
+        "fragments/get_image_media.html" %}{% when "video" %}{% include
+        "fragments/get_video_media.html" %}{% else %}{% endmatch %}
       </div>
     </main>
     <article>
       <h2>Details</h2>
-      {% include "post_details.html" %}
+      {% include "fragments/post_details.html" %}
     </article>
     {% if let Some(parent_post) = parent_post %}
     <article id="parent-post">
       <h2>Parent</h2>
-      <a href="/post/{{ parent_post.id }}" title="{{ parent_post.tags }}">
+      <a href="/post/{{ parent_post.id }}" title="{% if let Some(tags) = parent_post.tags %}{{ tags }}{% endif %}">
         <img src="/files/{{ parent_post.thumbnail }}" />
         <div>{{ parent_post.rating }}</div>
         <div>{{ parent_post.media_type }}</div>
@@ -69,7 +101,7 @@
       <ul>
         {% for child_post in children_posts %}
         <li>
-          <a href="/post/{{ child_post.id }}" title="{{ child_post.tags }}">
+          <a href="/post/{{ child_post.id }}" title="{% if let Some(tags) = child_post.tags %}{{ tags }}{% endif %}">
             <img src="/files/{{ child_post.thumbnail }}" />
             <div>{{ child_post.rating | upper }}</div>
             <div>{{ child_post.media_type }}</div>
@@ -79,15 +111,5 @@
       </ul>
     </article>
     {% endif %}
-    <article>
-      <h2>Tags</h2>
-      <ul id="tags-list">
-        {% for tag in tags %}
-        <li>
-          <a href="/posts?tags={{ tag.name }}">{{ tag.name }}</a>
-        </li>
-        {% endfor %}
-      </ul>
-    </article>
   </body>
 </html>

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>{{ application_name }}</title>
+    {% include "fragments/common_headers.html" %}
+  </head>
+  <body>
+    <main>
+      <h1>{{ application_name }}</h1>
+      <article>
+        <h2>Search</h2>
+        <form method="get" action="/posts/1">
+          {% let tags_value = "" %} {% include "fragments/tags_input.html" %}
+          <ul class="tags-autocomplete" id="search-autocomplete"></ul>
+          <button type="submit">Search</button>
+        </form>
+      </article>
+      <nav>
+        <ul>
+          <li>
+            <a href="/posts/1">Posts</a>
+          </li>
+          <li>
+            <a href="/pools/1">Pools</a>
+          </li>
+          {% if let Some(user) = user %}
+          <li>
+            <a href="/upload">Upload media</a>
+          </li>
+          <li>
+            <a href="/create_pool">Create pool</a>
+          </li>
+          {% if user.is_admin %}
+          <li>
+            <a href="/settings">Settings</a>
+          </li>
+          {% endif %}
+          <li>
+            <a href="/logout">Log out ({{ user.username }})</a>
+          </li>
+          {% else %}
+          <li>
+            <a href="/login">Login</a>
+          </li>
+          {% endif %}
+        </ul>
+      </nav>
+    </main>
+  </body>
+</html>

@@ -3,12 +3,13 @@
   type="text"
   id="search-tags"
   name="tags"
+  placeholder="Tags"
   hx-post="/search_tags"
   hx-trigger="input changed"
   hx-target="next .tags-autocomplete"
   hx-vals="js:{selection_end: event.target.selectionEnd}"
   hx-on::after-settle="this.focus(); this.setSelectionRange(-1, -1);"
-  value="{{ tags }}"
-  autofocus
+  value="{{ tags_value }}"
+  aria-autocomplete="list"
+  aria-controls="search-autocomplete"
 />
-<ul class="tags-autocomplete" hx-swap-oob="outerHTML:.tags-autocomplete"></ul>

@@ -1,7 +1,11 @@
-{% include "post_details.html" %} {% if let Some(parent_post) = parent_post %}
+{% include "fragments/post_details.html" %} {% if let Some(parent_post) =
+parent_post %}
 <article id="parent-post" hx-swap-oob="outerHTML">
   <h2>Parent</h2>
-  <a href="/post/{{ parent_post.id }}" title="{{ parent_post.tags }}">
+  <a
+    href="/post/{{ parent_post.id }}"
+    title="{% if let Some(tags) = parent_post.tags %}{{ tags }}{% endif %}"
+  >
     <img src="/files/{{ parent_post.thumbnail }}" />
     <div>{{ parent_post.rating }}</div>
   </a>

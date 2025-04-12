@@ -6,8 +6,10 @@
   </div>
   <div>
     <label>Description</label>
-    {% if let Some(description) = post.description %}{{ description }}{% else
-    %}<em>None</em>{% endif %}
+    {% if let Some(description) = post.description %}{{ description | markdown
+    }}{% else %}
+    <p><em>None</em></p>
+    {% endif %}
   </div>
   <div>
     <label>Is public?</label>

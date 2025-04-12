@@ -8,10 +8,17 @@ Sam's small image board. Currently a WIP.
 
 ## TODO
 
-- [ ] Cleanup/fixup background tasks
-- [ ] User management
+- [ ] Rename pool
 - [ ] CSS
-- [ ] Cleanup, CLI, env vars, logging, better errors...
+- [ ] Logging, better errors...
+
+### Post-0.1.0 roadmap
+
+- [ ] Bulk edit tags/Fix tag capitalization
+- [ ] User management
+- [ ] Text media
+- [ ] Cleanup/fixup background tasks
+- [ ] Migrate to Cot...?
 
 ## Running in development
 

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Create pool - {{ application_name }}</title>
+    {% include "fragments/common_headers.html" %}
+  </head>
+  <body>
+    <div><a href="/">&lt; To home</a></div>
+    <main>
+      <h1>Create pool</h1>
+      <form method="post" action="/pool">
+        <input
+          class="pool"
+          type="text"
+          id="pool"
+          name="pool"
+          maxlength="100"
+          placeholder="Name"
+          autofocus
+        />
+        <button type="submit">Create</button>
+      </form>
+    </main>
+  </body>
+</html>

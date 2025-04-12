@@ -15,6 +15,7 @@
       <a href="/post/{{ post.id }}" title="{{ post.tags }}">
         <img src="/files/{{ post.thumbnail }}" />
         <div>{{ post.rating | upper }}</div>
+        <div>{{ post.media_type }}</div>
       </a>
       {% if can_edit %}
       <button

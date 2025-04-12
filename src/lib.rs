@@ -7,13 +7,19 @@ pub(crate) mod rating;
 pub(crate) mod video;
 pub(crate) mod views;
 
-use std::sync::Arc;
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use axum::{
     Router,
     extract::DefaultBodyLimit,
+    http::{StatusCode, header::CONTENT_TYPE},
+    response::IntoResponse,
     routing::{delete, get, post, put},
 };
+use axum_extra::routing::RouterExt;
 use axum_login::AuthManagerLayerBuilder;
 use entities::{prelude::SameyConfig, samey_config};
 use password_auth::generate_hash;
@@ -26,19 +32,34 @@ use crate::auth::{Backend, SessionStorage};
 use crate::config::APPLICATION_NAME_KEY;
 use crate::entities::{prelude::SameyUser, samey_user};
 pub use crate::error::SameyError;
-use crate::views::{
-    add_post_source, add_post_to_pool, change_pool_visibility, create_pool, delete_post,
-    edit_post_details, get_full_media, get_media, get_pools, get_pools_page, index, login, logout,
-    post_details, posts, posts_page, remove_field, remove_pool_post, search_tags, select_tag,
-    settings, sort_pool, submit_post_details, update_settings, upload, view_pool, view_post,
-};
+use crate::views::*;
 
 pub(crate) const NEGATIVE_PREFIX: &str = "-";
 pub(crate) const RATING_PREFIX: &str = "rating:";
 
+#[derive(rust_embed::Embed)]
+#[folder = "static/"]
+struct Asset;
+
+fn assets_router() -> Router {
+    Router::new().route(
+        "/{*file}",
+        get(|uri: axum::http::Uri| async move {
+            let path = uri.path().trim_start_matches('/');
+            match Asset::get(path) {
+                Some(content) => {
+                    let mime = mime_guess::MimeGuess::from_path(path).first_or_octet_stream();
+                    ([(CONTENT_TYPE, mime.as_ref())], content.data).into_response()
+                }
+                None => StatusCode::NOT_FOUND.into_response(),
+            }
+        }),
+    )
+}
+
 #[derive(Clone)]
 pub(crate) struct AppState {
-    files_dir: Arc<String>,
+    files_dir: Arc<PathBuf>,
     db: DatabaseConnection,
     application_name: Arc<RwLock<String>>,
 }
@@ -60,7 +81,10 @@ pub async fn create_user(
     Ok(())
 }
 
-pub async fn get_router(db: DatabaseConnection, files_dir: &str) -> Result<Router, SameyError> {
+pub async fn get_router(
+    db: DatabaseConnection,
+    files_dir: impl AsRef<Path>,
+) -> Result<Router, SameyError> {
     let application_name = match SameyConfig::find()
         .filter(samey_config::Column::Key.eq(APPLICATION_NAME_KEY))
         .one(&db)
@@ -70,11 +94,11 @@ pub async fn get_router(db: DatabaseConnection, files_dir: &str) -> Result<Route
         None => "Samey".to_owned(),
     };
     let state = AppState {
-        files_dir: Arc::new(files_dir.into()),
+        files_dir: Arc::new(files_dir.as_ref().to_owned()),
         db: db.clone(),
         application_name: Arc::new(RwLock::new(application_name)),
     };
-    fs::create_dir_all(files_dir).await?;
+    fs::create_dir_all(files_dir.as_ref()).await?;
 
     let session_store = SessionStorage::new(db.clone());
     let session_layer = SessionManagerLayer::new(session_store);
@@ -82,43 +106,47 @@ pub async fn get_router(db: DatabaseConnection, files_dir: &str) -> Result<Route
 
     Ok(Router::new()
         // Auth routes
-        .route("/login", post(login))
-        .route("/logout", get(logout))
+        .route_with_tsr("/login", get(login_page).post(login))
+        .route_with_tsr("/logout", get(logout))
         // Tags routes
-        .route("/search_tags", post(search_tags))
-        .route("/select_tag", post(select_tag))
+        .route_with_tsr("/search_tags", post(search_tags))
+        .route_with_tsr("/select_tag", post(select_tag))
         // Post routes
-        .route(
+        .route_with_tsr(
             "/upload",
-            post(upload).layer(DefaultBodyLimit::max(100_000_000)),
+            get(upload_page)
+                .post(upload)
+                .layer(DefaultBodyLimit::max(100_000_000)),
         )
-        .route("/post/{post_id}", get(view_post).delete(delete_post))
-        .route("/post_details/{post_id}/edit", get(edit_post_details))
-        .route(
+        .route_with_tsr("/post/{post_id}", get(view_post_page).delete(delete_post))
+        .route_with_tsr("/post_details/{post_id}/edit", get(edit_post_details))
+        .route_with_tsr(
             "/post_details/{post_id}",
             get(post_details).put(submit_post_details),
         )
-        .route("/post_source", post(add_post_source))
-        .route("/media/{post_id}/full", get(get_full_media))
-        .route("/media/{post_id}", get(get_media))
+        .route_with_tsr("/post_source", post(add_post_source))
+        .route_with_tsr("/media/{post_id}/full", get(get_full_media))
+        .route_with_tsr("/media/{post_id}", get(get_media))
         // Pool routes
-        .route("/pools", get(get_pools))
-        .route("/pools/{page}", get(get_pools_page))
-        .route("/pool", post(create_pool))
-        .route("/pool/{pool_id}", get(view_pool))
-        .route("/pool/{pool_id}/public", put(change_pool_visibility))
-        .route("/pool/{pool_id}/post", post(add_post_to_pool))
-        .route("/pool/{pool_id}/sort", put(sort_pool))
-        .route("/pool_post/{pool_post_id}", delete(remove_pool_post))
+        .route_with_tsr("/create_pool", get(create_pool_page))
+        .route_with_tsr("/pools", get(get_pools))
+        .route_with_tsr("/pools/{page}", get(get_pools_page))
+        .route_with_tsr("/pool", post(create_pool))
+        .route_with_tsr("/pool/{pool_id}", get(view_pool))
+        .route_with_tsr("/pool/{pool_id}/public", put(change_pool_visibility))
+        .route_with_tsr("/pool/{pool_id}/post", post(add_post_to_pool))
+        .route_with_tsr("/pool/{pool_id}/sort", put(sort_pool))
+        .route_with_tsr("/pool_post/{pool_post_id}", delete(remove_pool_post))
         // Settings routes
-        .route("/settings", get(settings).put(update_settings))
+        .route_with_tsr("/settings", get(settings).put(update_settings))
         // Search routes
-        .route("/posts", get(posts))
-        .route("/posts/{page}", get(posts_page))
+        .route_with_tsr("/posts", get(posts))
+        .route_with_tsr("/posts/{page}", get(posts_page))
         // Other routes
-        .route("/remove", delete(remove_field))
+        .route_with_tsr("/remove", delete(remove_field))
         .route("/", get(index))
         .with_state(state)
         .nest_service("/files", ServeDir::new(files_dir))
+        .nest("/static", assets_router())
         .layer(auth_layer))
 }

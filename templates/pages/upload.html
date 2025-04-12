@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Upload media - {{ application_name }}</title>
+    {% include "fragments/common_headers.html" %}
+  </head>
+  <body>
+    <div><a href="/">&lt; To home</a></div>
+    <main>
+      <h1>Upload media</h1>
+      <form method="post" action="/upload" enctype="multipart/form-data">
+        {% let tags_value = "" %} {% include "fragments/tags_input.html" %}
+        <ul class="tags-autocomplete" id="upload-autocomplete"></ul>
+        <input
+          type="file"
+          id="media-file"
+          name="media-file"
+          accept=".jpg, .jpeg, .png, .webp, .gif, .mp4, .webm, .mkv, .mov"
+        />
+        <button type="submit">Submit</button>
+      </form>
+    </main>
+  </body>
+</html>

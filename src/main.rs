@@ -13,12 +13,6 @@ struct Config {
 enum Commands {
     Run,
     Migrate,
-    AddUser {
-        #[arg(short, long)]
-        username: String,
-        #[arg(short, long)]
-        password: String,
-    },
     AddAdminUser {
         #[arg(short, long)]
         username: String,
@@ -39,15 +33,10 @@ async fn main() {
                 .await
                 .expect("Unable to apply migrations");
         }
-        Some(Commands::AddUser { username, password }) => {
-            create_user(db, username, password, false)
-                .await
-                .expect("Unable to add user");
-        }
         Some(Commands::AddAdminUser { username, password }) => {
             create_user(db, username, password, true)
                 .await
-                .expect("Unable to add admin");
+                .expect("Unable to add admin user");
         }
         Some(Commands::Run) | None => {
             Migrator::up(&db, None)

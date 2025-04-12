@@ -1,28 +1,16 @@
 <form hx-put="/post_details/{{ post.id }}" hx-target="this" hx-swap="outerHTML">
   <div>
     <label>Tags</label>
-    <input
-      class="tags"
-      type="text"
-      id="search-tags"
-      name="tags"
-      hx-post="/search_tags"
-      hx-trigger="input changed delay:400ms"
-      hx-target="next .tags-autocomplete"
-      hx-swap="innerHTML"
-      hx-on::after-settle="this.focus(); this.setSelectionRange(-1, -1);"
-      value="{{ tags }}"
-      autofocus
-    />
+    {% let tags_value = tags %} {% include "fragments/tags_input.html" %}
     <ul class="tags-autocomplete" id="search-autocomplete"></ul>
   </div>
   <div>
     <label>Title</label>
-    <input name="title" type="text" maxlength="100" value="{% if let Some(title) = post.title %}{{ title }}{% endif %}" />
+    <input name="title" type="text" maxlength="100" placeholder="Title" value="{% if let Some(title) = post.title %}{{ title }}{% endif %}" />
   </div>
   <div>
     <label>Description</label>
-    <textarea name="description">{% if let Some(description) = post.description %}{{ description }}{% endif %}</textarea>
+    <textarea name="description" placeholder="Description in Markdown">{% if let Some(description) = post.description %}{{ description }}{% endif %}</textarea>
   </div>
   <div>
     <label>Is public post?</label>
@@ -41,7 +29,7 @@
     <label>Source(s)</label>
     <ul id="sources">
       {% for source in sources %}
-      {% include "post_source.html" %}
+      {% include "fragments/post_source.html" %}
       {% endfor %}
     </ul>
     <button hx-post="/post_source" hx-target="#sources" hx-swap="beforeend">+</button>

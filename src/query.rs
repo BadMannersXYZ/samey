@@ -19,7 +19,7 @@ use crate::{
 pub(crate) struct PostOverview {
     pub(crate) id: i32,
     pub(crate) thumbnail: String,
-    pub(crate) tags: String,
+    pub(crate) tags: Option<String>,
     pub(crate) media_type: String,
     pub(crate) rating: String,
 }
@@ -60,9 +60,9 @@ pub(crate) fn search_posts(
                 Expr::cust("GROUP_CONCAT(\"samey_tag\".\"name\", ' ')"),
                 "tags",
             )
-            .inner_join(SameyTagPost)
+            .left_join(SameyTagPost)
             .join(
-                sea_orm::JoinType::InnerJoin,
+                sea_orm::JoinType::LeftJoin,
                 samey_tag_post::Relation::SameyTag.def(),
             );
         if !include_ratings.is_empty() {
@@ -83,9 +83,9 @@ pub(crate) fn search_posts(
                 Expr::cust("GROUP_CONCAT(\"samey_tag\".\"name\", ' ')"),
                 "tags",
             )
-            .inner_join(SameyTagPost)
+            .left_join(SameyTagPost)
             .join(
-                sea_orm::JoinType::InnerJoin,
+                sea_orm::JoinType::LeftJoin,
                 samey_tag_post::Relation::SameyTag.def(),
             );
         if !include_tags.is_empty() {
@@ -136,7 +136,7 @@ pub(crate) fn search_posts(
         query
     };
 
-    filter_by_user(query, user)
+    filter_posts_by_user(query, user)
         .group_by(samey_post::Column::Id)
         .order_by_desc(samey_post::Column::Id)
         .into_model::<PostOverview>()
@@ -154,6 +154,7 @@ pub(crate) struct PoolPost {
     pub(crate) id: i32,
     pub(crate) thumbnail: String,
     pub(crate) rating: String,
+    pub(crate) media_type: String,
     pub(crate) pool_post_id: i32,
     pub(crate) position: f32,
     pub(crate) tags: String,
@@ -163,11 +164,12 @@ pub(crate) fn get_posts_in_pool(
     pool_id: i32,
     user: Option<&User>,
 ) -> Selector<SelectModel<PoolPost>> {
-    filter_by_user(
+    filter_posts_by_user(
         SameyPost::find()
             .column(samey_post::Column::Id)
             .column(samey_post::Column::Thumbnail)
             .column(samey_post::Column::Rating)
+            .column(samey_post::Column::MediaType)
             .column_as(samey_pool_post::Column::Id, "pool_post_id")
             .column(samey_pool_post::Column::Position)
             .column_as(
@@ -188,7 +190,10 @@ pub(crate) fn get_posts_in_pool(
     .into_model::<PoolPost>()
 }
 
-pub(crate) fn filter_by_user(query: Select<SameyPost>, user: Option<&User>) -> Select<SameyPost> {
+pub(crate) fn filter_posts_by_user(
+    query: Select<SameyPost>,
+    user: Option<&User>,
+) -> Select<SameyPost> {
     match user {
         None => query.filter(samey_post::Column::IsPublic.into_simple_expr()),
         Some(user) if user.is_admin => query,
