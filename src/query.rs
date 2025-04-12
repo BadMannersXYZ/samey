@@ -20,6 +20,7 @@ pub(crate) struct PostOverview {
     pub(crate) id: i32,
     pub(crate) thumbnail: String,
     pub(crate) tags: String,
+    pub(crate) media_type: String,
     pub(crate) rating: String,
 }
 
@@ -54,6 +55,7 @@ pub(crate) fn search_posts(
             .column(samey_post::Column::Id)
             .column(samey_post::Column::Thumbnail)
             .column(samey_post::Column::Rating)
+            .column(samey_post::Column::MediaType)
             .column_as(
                 Expr::cust("GROUP_CONCAT(\"samey_tag\".\"name\", ' ')"),
                 "tags",
@@ -76,6 +78,7 @@ pub(crate) fn search_posts(
             .column(samey_post::Column::Id)
             .column(samey_post::Column::Thumbnail)
             .column(samey_post::Column::Rating)
+            .column(samey_post::Column::MediaType)
             .column_as(
                 Expr::cust("GROUP_CONCAT(\"samey_tag\".\"name\", ' ')"),
                 "tags",

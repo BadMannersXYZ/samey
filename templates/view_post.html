@@ -6,15 +6,12 @@
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     <title>Post #{{ post.id }} - {{ application_name }}</title>
     <meta name="generator" content="Samey {{ env!("CARGO_PKG_VERSION") }}" />
+    <meta property="og:site_name" content="{{ application_name }}" />
     <meta
       property="og:title"
       content="{% if let Some(title) = post.title %}{{ title }}{% endif %}"
     />
     <meta property="og:url" content="/post/{{ post.id }}" />
-    <meta property="og:image" content="/files/{{ post.media }}" />
-    <meta property="og:image:width" content="{{ post.width }}" />
-    <meta property="og:image:height" content="{{ post.height }}" />
-    <meta property="og:image:alt" content="{{ tags_text }}" />
     <meta
       property="og:description"
       content="{% if let Some(description) = post.description %}{{ description }}{% endif %}"
@@ -23,13 +20,33 @@
       property="twitter:title"
       content="{% if let Some(title) = post.title %}{{ title }}{% endif %}"
     />
-    <meta property="twitter:image:src" content="/files/{{ post.media }}" />
+    {% match post.media_type.as_ref() %} {% when "image" %}
+    <meta property="og:image" content="/files/{{ post.media }}" />
+    <meta property="og:image:width" content="{{ post.width }}" />
+    <meta property="og:image:height" content="{{ post.height }}" />
+    <meta property="og:image:alt" content="{{ tags_text }}" />
     <meta property="twitter:card" content="summary_large_image" />
+    {% when "video" %}
+    <meta property="og:video" content="/files/{{ post.media }}" />
+    <meta property="og:video:width" content="{{ post.width }}" />
+    <meta property="og:video:height" content="{{ post.height }}" />
+    <meta property="og:video:alt" content="{{ tags_text }}" />
+    <meta property="og:video:type" content="video/mp4" />
+    <meta property="twitter:card" content="player" />
+    <meta name="twitter:player" content="/files/{{ post.media }}" />
+    <meta name="twitter:player:width" content="{{ post.width }}" />
+    <meta name="twitter:player:height" content="{{ post.height }}" />
+    <meta name="twitter:image" content="/files/{{ post.thumbnail }}" />
+    {% else %} {% endmatch %}
   </head>
   <body>
     <main>
       <h1>View post #{{ post.id }}</h1>
-      <div>{% include "get_media.html" %}</div>
+      <div>
+        {% match post.media_type.as_ref() %}{% when "image" %}{% include
+        "get_image_media.html" %}{% when "video" %}{% include
+        "get_video_media.html" %}{% else %}{% endmatch %}
+      </div>
     </main>
     <article>
       <h2>Details</h2>
@@ -41,6 +58,7 @@
       <a href="/post/{{ parent_post.id }}" title="{{ parent_post.tags }}">
         <img src="/files/{{ parent_post.thumbnail }}" />
         <div>{{ parent_post.rating }}</div>
+        <div>{{ parent_post.media_type }}</div>
       </a>
     </article>
     {% else %}
@@ -54,6 +72,7 @@
           <a href="/post/{{ child_post.id }}" title="{{ child_post.tags }}">
             <img src="/files/{{ child_post.thumbnail }}" />
             <div>{{ child_post.rating | upper }}</div>
+            <div>{{ child_post.media_type }}</div>
           </a>
         </li>
         {% endfor %}

@@ -86,7 +86,14 @@ impl MigrationTrait for Migration {
                     .col(string_len(SameyPost::Media, 255))
                     .col(integer(SameyPost::Width))
                     .col(integer(SameyPost::Height))
+                    .col(enumeration(
+                        SameyPost::MediaType,
+                        MediaType::Enum,
+                        [MediaType::Image, MediaType::Video],
+                    ))
                     .col(string_len(SameyPost::Thumbnail, 255))
+                    .col(integer(SameyPost::ThumbnailWidth))
+                    .col(integer(SameyPost::ThumbnailHeight))
                     .col(string_len_null(SameyPost::Title, 100))
                     .col(text_null(SameyPost::Description))
                     .col(boolean(SameyPost::IsPublic).default(false))
@@ -291,13 +298,27 @@ enum SameyPost {
     Media,
     Width,
     Height,
+    MediaType,
     Thumbnail,
+    ThumbnailWidth,
+    ThumbnailHeight,
     Title,
     Description,
     IsPublic,
     Rating,
     UploadedAt,
     ParentId,
+}
+
+#[derive(DeriveIden)]
+#[sea_orm(enum_name = "media_type")]
+pub enum MediaType {
+    #[sea_orm(iden = "media_type")]
+    Enum,
+    #[sea_orm(iden = "image")]
+    Image,
+    #[sea_orm(iden = "video")]
+    Video,
 }
 
 #[derive(DeriveIden)]

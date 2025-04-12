@@ -4,6 +4,7 @@ pub(crate) mod entities;
 pub(crate) mod error;
 pub(crate) mod query;
 pub(crate) mod rating;
+pub(crate) mod video;
 pub(crate) mod views;
 
 use std::sync::Arc;

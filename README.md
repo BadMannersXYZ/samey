@@ -2,9 +2,12 @@
 
 Sam's small image board. Currently a WIP.
 
+## Prerequisites
+
+- `ffmpeg` and `ffprobe`
+
 ## TODO
 
-- [ ] Video support
 - [ ] Cleanup/fixup background tasks
 - [ ] User management
 - [ ] CSS

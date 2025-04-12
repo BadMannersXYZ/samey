@@ -11,7 +11,11 @@ pub struct Model {
     pub media: String,
     pub width: i32,
     pub height: i32,
+    #[sea_orm(column_type = "custom(\"enum_text\")")]
+    pub media_type: String,
     pub thumbnail: String,
+    pub thumbnail_width: i32,
+    pub thumbnail_height: i32,
     pub title: Option<String>,
     #[sea_orm(column_type = "Text", nullable)]
     pub description: Option<String>,

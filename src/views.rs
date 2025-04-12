@@ -4,6 +4,7 @@ use std::{
     fs::OpenOptions,
     io::{BufReader, Seek, Write},
     num::NonZero,
+    str::FromStr,
 };
 
 use askama::Template;
@@ -22,7 +23,7 @@ use sea_orm::{
     ModelTrait, PaginatorTrait, QueryFilter, QuerySelect,
 };
 use serde::Deserialize;
-use tokio::task::spawn_blocking;
+use tokio::{task::spawn_blocking, try_join};
 
 use crate::{
     AppState, NEGATIVE_PREFIX, RATING_PREFIX,
@@ -40,6 +41,7 @@ use crate::{
     query::{
         PoolPost, PostOverview, filter_by_user, get_posts_in_pool, get_tags_for_post, search_posts,
     },
+    video::{generate_thumbnail, get_dimensions_for_video},
 };
 
 const MAX_THUMBNAIL_DIMENSION: u32 = 192;
@@ -98,6 +100,39 @@ pub(crate) async fn logout(mut auth_session: AuthSession) -> Result<impl IntoRes
 
 // Post upload view
 
+enum Format {
+    Video(&'static str),
+    Image(ImageFormat),
+}
+
+impl Format {
+    fn media_type(&self) -> &'static str {
+        match self {
+            Format::Video(_) => "video",
+            Format::Image(_) => "image",
+        }
+    }
+}
+
+impl FromStr for Format {
+    type Err = SameyError;
+
+    fn from_str(content_type: &str) -> Result<Self, Self::Err> {
+        match content_type {
+            "video/mp4" => Ok(Self::Video(".mp4")),
+            "video/webm" => Ok(Self::Video(".webm")),
+            "application/x-matroska" | "video/mastroska" => Ok(Self::Video(".mkv")),
+            "video/quicktime" => Ok(Self::Video(".mov")),
+            _ => Ok(Self::Image(
+                ImageFormat::from_mime_type(content_type).ok_or(SameyError::Other(format!(
+                    "Unknown content type: {}",
+                    content_type
+                )))?,
+            )),
+        }
+    }
+}
+
 pub(crate) async fn upload(
     State(AppState { db, files_dir, .. }): State<AppState>,
     auth_session: AuthSession,
@@ -110,9 +145,12 @@ pub(crate) async fn upload(
 
     let mut upload_tags: Option<Vec<samey_tag::Model>> = None;
     let mut source_file: Option<String> = None;
-    let mut thumbnail_file: Option<String> = None;
+    let mut media_type: Option<&'static str> = None;
     let mut width: Option<NonZero<i32>> = None;
     let mut height: Option<NonZero<i32>> = None;
+    let mut thumbnail_file: Option<String> = None;
+    let mut thumbnail_width: Option<NonZero<i32>> = None;
+    let mut thumbnail_height: Option<NonZero<i32>> = None;
     let base_path = std::path::Path::new(files_dir.as_ref());
 
     // Read multipart form data
@@ -143,73 +181,150 @@ pub(crate) async fn upload(
                     );
                 }
             }
+
             "media-file" => {
                 let content_type = field
                     .content_type()
                     .ok_or(SameyError::Other("Missing content type".into()))?;
-                let format = ImageFormat::from_mime_type(content_type).ok_or(SameyError::Other(
-                    format!("Unknown content type: {}", content_type),
-                ))?;
-                let file_name = {
-                    let mut rng = rand::rng();
-                    let mut file_name: String = (0..8)
-                        .map(|_| rng.sample(rand::distr::Alphanumeric) as char)
-                        .collect();
-                    file_name.push('.');
-                    file_name.push_str(format.extensions_str()[0]);
-                    file_name
-                };
-                let thumbnail_file_name = format!("thumb-{}", file_name);
-                let file_path = base_path.join(&file_name);
-                let mut file = OpenOptions::new()
-                    .read(true)
-                    .write(true)
-                    .create(true)
-                    .open(&file_path)?;
-                while let Some(chunk) = field.chunk().await? {
-                    file.write_all(&chunk)?;
+                match Format::from_str(content_type)? {
+                    format @ Format::Video(video_format) => {
+                        media_type = Some(format.media_type());
+                        let thumbnail_format = ImageFormat::Png;
+                        let (file_name, thumbnail_file_name) = {
+                            let mut rng = rand::rng();
+                            let mut file_name: String = (0..8)
+                                .map(|_| rng.sample(rand::distr::Alphanumeric) as char)
+                                .collect();
+                            let thumbnail_file_name = format!(
+                                "thumb-{}.{}",
+                                file_name,
+                                thumbnail_format.extensions_str()[0]
+                            );
+                            file_name.push_str(video_format);
+                            (file_name, thumbnail_file_name)
+                        };
+                        let file_path = base_path.join(&file_name);
+                        let mut file = OpenOptions::new()
+                            .read(true)
+                            .write(true)
+                            .create(true)
+                            .open(&file_path)?;
+                        while let Some(chunk) = field.chunk().await? {
+                            file.write_all(&chunk)?;
+                        }
+                        let file_path_2 = file_path.to_string_lossy().into_owned();
+                        let thumbnail_path = base_path.join(&thumbnail_file_name);
+                        let jh_thumbnail = spawn_blocking(move || {
+                            generate_thumbnail(
+                                &file_path_2,
+                                &thumbnail_path.to_string_lossy(),
+                                MAX_THUMBNAIL_DIMENSION,
+                            )?;
+                            let mut image = ImageReader::new(BufReader::new(
+                                OpenOptions::new().read(true).open(thumbnail_path)?,
+                            ));
+                            image.set_format(thumbnail_format);
+                            Ok(image.into_dimensions()?)
+                        });
+                        let file_path_2 = file_path.to_string_lossy().into_owned();
+                        let jh_video =
+                            spawn_blocking(move || get_dimensions_for_video(&file_path_2));
+                        let (dim_thumbnail, dim_video) = match try_join!(jh_thumbnail, jh_video)? {
+                            (Ok(dim_thumbnail), Ok(dim_video)) => (dim_thumbnail, dim_video),
+                            (Err(err), _) | (_, Err(err)) => return Err(err),
+                        };
+                        width = NonZero::new(dim_video.0.try_into()?);
+                        height = NonZero::new(dim_video.1.try_into()?);
+                        thumbnail_width = NonZero::new(dim_thumbnail.0.try_into()?);
+                        thumbnail_height = NonZero::new(dim_thumbnail.1.try_into()?);
+                        source_file = Some(file_name);
+                        thumbnail_file = Some(thumbnail_file_name);
+                    }
+
+                    format @ Format::Image(image_format) => {
+                        media_type = Some(format.media_type());
+                        let file_name = {
+                            let mut rng = rand::rng();
+                            let mut file_name: String = (0..8)
+                                .map(|_| rng.sample(rand::distr::Alphanumeric) as char)
+                                .collect();
+                            file_name.push('.');
+                            file_name.push_str(image_format.extensions_str()[0]);
+                            file_name
+                        };
+                        let thumbnail_file_name = format!("thumb-{}", file_name);
+                        let file_path = base_path.join(&file_name);
+                        let mut file = OpenOptions::new()
+                            .read(true)
+                            .write(true)
+                            .create(true)
+                            .open(&file_path)?;
+                        while let Some(chunk) = field.chunk().await? {
+                            file.write_all(&chunk)?;
+                        }
+                        let base_path_2 = base_path.to_owned();
+                        let thumbnail_path = base_path_2.join(&thumbnail_file_name);
+                        let (w, h, tw, th) = spawn_blocking(move || -> Result<_, SameyError> {
+                            file.seek(std::io::SeekFrom::Start(0))?;
+                            let mut image = ImageReader::new(BufReader::new(file));
+                            image.set_format(image_format);
+                            let image = image.decode()?;
+                            let (w, h) = image.dimensions();
+                            let width = NonZero::new(w.try_into()?);
+                            let height = NonZero::new(h.try_into()?);
+                            let thumbnail = image.resize(
+                                MAX_THUMBNAIL_DIMENSION,
+                                MAX_THUMBNAIL_DIMENSION,
+                                image::imageops::FilterType::CatmullRom,
+                            );
+                            thumbnail.save(thumbnail_path)?;
+                            let (tw, th) = image.dimensions();
+                            let thumbnail_width = NonZero::new(tw.try_into()?);
+                            let thumbnail_height = NonZero::new(th.try_into()?);
+                            Ok((width, height, thumbnail_width, thumbnail_height))
+                        })
+                        .await??;
+                        width = w;
+                        height = h;
+                        thumbnail_width = tw;
+                        thumbnail_height = th;
+                        source_file = Some(file_name);
+                        thumbnail_file = Some(thumbnail_file_name);
+                    }
                 }
-                let base_path_2 = base_path.to_owned();
-                let (w, h, thumbnail_file_name) =
-                    spawn_blocking(move || -> Result<_, SameyError> {
-                        file.seek(std::io::SeekFrom::Start(0))?;
-                        let mut image = ImageReader::new(BufReader::new(file));
-                        image.set_format(format);
-                        let image = image.decode()?;
-                        let (w, h) = image.dimensions();
-                        let width = NonZero::new(w.try_into()?);
-                        let height = NonZero::new(h.try_into()?);
-                        let thumbnail = image.resize(
-                            MAX_THUMBNAIL_DIMENSION,
-                            MAX_THUMBNAIL_DIMENSION,
-                            image::imageops::FilterType::CatmullRom,
-                        );
-                        thumbnail.save(base_path_2.join(&thumbnail_file_name))?;
-                        Ok((width, height, thumbnail_file_name))
-                    })
-                    .await??;
-                width = w;
-                height = h;
-                source_file = Some(file_name);
-                thumbnail_file = Some(thumbnail_file_name);
             }
             _ => (),
         }
     }
 
-    if let (Some(upload_tags), Some(source_file), Some(thumbnail_file), Some(width), Some(height)) = (
+    if let (
+        Some(upload_tags),
+        Some(source_file),
+        Some(media_type),
+        Some(thumbnail_file),
+        Some(width),
+        Some(height),
+        Some(thumbnail_width),
+        Some(thumbnail_height),
+    ) = (
         upload_tags,
         source_file,
+        media_type,
         thumbnail_file,
         width.map(|w| w.get()),
         height.map(|h| h.get()),
+        thumbnail_width.map(|w| w.get()),
+        thumbnail_height.map(|h| h.get()),
     ) {
         let uploaded_post = SameyPost::insert(samey_post::ActiveModel {
             uploader_id: Set(user.id),
             media: Set(source_file),
+            media_type: Set(media_type.into()),
             width: Set(width),
             height: Set(height),
             thumbnail: Set(thumbnail_file),
+            thumbnail_width: Set(thumbnail_width),
+            thumbnail_height: Set(thumbnail_height),
             title: Set(None),
             description: Set(None),
             rating: Set("u".to_owned()),
@@ -934,6 +1049,7 @@ pub(crate) async fn view_post(
                     .map(|tag| &tag.name)
                     .join(" "),
                 rating: parent_post.rating,
+                media_type: parent_post.media_type,
             }),
             None => None,
         }
@@ -960,6 +1076,7 @@ pub(crate) async fn view_post(
                 .map(|tag| &tag.name)
                 .join(" "),
             rating: child_post.rating,
+            media_type: child_post.media_type,
         });
     }
 
@@ -1094,6 +1211,7 @@ pub(crate) async fn submit_post_details(
                     .map(|tag| &tag.name)
                     .join(" "),
                 rating: parent_post.rating,
+                media_type: parent_post.media_type,
             }),
             None => None,
         }
@@ -1263,7 +1381,7 @@ pub(crate) async fn remove_field() -> impl IntoResponse {
 }
 
 #[derive(Template)]
-#[template(path = "get_media.html")]
+#[template(path = "get_image_media.html")]
 struct GetMediaTemplate {
     post: samey_post::Model,
 }
@@ -1291,7 +1409,7 @@ pub(crate) async fn get_media(
 }
 
 #[derive(Template)]
-#[template(path = "get_full_media.html")]
+#[template(path = "get_full_image_media.html")]
 struct GetFullMediaTemplate {
     post: samey_post::Model,
 }
