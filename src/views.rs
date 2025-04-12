@@ -1,5 +1,6 @@
 use std::{
-    collections::HashSet,
+    any::Any,
+    collections::{HashMap, HashSet},
     fs::OpenOptions,
     io::{BufReader, Seek, Write},
     num::NonZero,
@@ -26,9 +27,14 @@ use tokio::task::spawn_blocking;
 use crate::{
     AppState, NEGATIVE_PREFIX, RATING_PREFIX,
     auth::{AuthSession, Credentials, User},
+    config::APPLICATION_NAME_KEY,
     entities::{
-        prelude::{SameyPool, SameyPoolPost, SameyPost, SameyPostSource, SameyTag, SameyTagPost},
-        samey_pool, samey_pool_post, samey_post, samey_post_source, samey_tag, samey_tag_post,
+        prelude::{
+            SameyConfig, SameyPool, SameyPoolPost, SameyPost, SameyPostSource, SameyTag,
+            SameyTagPost,
+        },
+        samey_config, samey_pool, samey_pool_post, samey_post, samey_post_source, samey_tag,
+        samey_tag_post,
     },
     error::SameyError,
     query::{
@@ -43,12 +49,20 @@ const MAX_THUMBNAIL_DIMENSION: u32 = 192;
 #[derive(Template)]
 #[template(path = "index.html")]
 struct IndexTemplate {
+    application_name: String,
     user: Option<User>,
 }
 
-pub(crate) async fn index(auth_session: AuthSession) -> Result<impl IntoResponse, SameyError> {
+pub(crate) async fn index(
+    State(AppState {
+        application_name, ..
+    }): State<AppState>,
+    auth_session: AuthSession,
+) -> Result<impl IntoResponse, SameyError> {
+    let application_name = application_name.read().await.clone();
     Ok(Html(
         IndexTemplate {
+            application_name,
             user: auth_session.user,
         }
         .render()?,
@@ -85,7 +99,7 @@ pub(crate) async fn logout(mut auth_session: AuthSession) -> Result<impl IntoRes
 // Post upload view
 
 pub(crate) async fn upload(
-    State(AppState { db, files_dir }): State<AppState>,
+    State(AppState { db, files_dir, .. }): State<AppState>,
     auth_session: AuthSession,
     mut multipart: Multipart,
 ) -> Result<impl IntoResponse, SameyError> {
@@ -370,6 +384,7 @@ pub(crate) async fn select_tag(
 #[derive(Template)]
 #[template(path = "posts.html")]
 struct PostsTemplate<'a> {
+    application_name: String,
     tags: Option<Vec<&'a str>>,
     tags_text: Option<String>,
     posts: Vec<PostOverview>,
@@ -391,11 +406,16 @@ pub(crate) async fn posts(
 }
 
 pub(crate) async fn posts_page(
-    State(AppState { db, .. }): State<AppState>,
+    State(AppState {
+        db,
+        application_name,
+        ..
+    }): State<AppState>,
     auth_session: AuthSession,
     Query(query): Query<PostsQuery>,
     Path(page): Path<u32>,
 ) -> Result<impl IntoResponse, SameyError> {
+    let application_name = application_name.read().await.clone();
     let tags = query
         .tags
         .as_ref()
@@ -417,6 +437,7 @@ pub(crate) async fn posts_page(
 
     Ok(Html(
         PostsTemplate {
+            application_name,
             tags_text: tags.as_ref().map(|tags| tags.iter().join(" ")),
             tags,
             posts,
@@ -439,16 +460,22 @@ pub(crate) async fn get_pools(
 #[derive(Template)]
 #[template(path = "pools.html")]
 struct GetPoolsTemplate {
+    application_name: String,
     pools: Vec<samey_pool::Model>,
     page: u32,
     page_count: u64,
 }
 
 pub(crate) async fn get_pools_page(
-    State(AppState { db, .. }): State<AppState>,
+    State(AppState {
+        db,
+        application_name,
+        ..
+    }): State<AppState>,
     auth_session: AuthSession,
     Path(page): Path<u32>,
 ) -> Result<impl IntoResponse, SameyError> {
+    let application_name = application_name.read().await.clone();
     let query = match auth_session.user {
         None => SameyPool::find().filter(samey_pool::Column::IsPublic.into_simple_expr()),
         Some(user) if user.is_admin => SameyPool::find(),
@@ -466,6 +493,7 @@ pub(crate) async fn get_pools_page(
 
     Ok(Html(
         GetPoolsTemplate {
+            application_name,
             pools,
             page,
             page_count,
@@ -504,16 +532,22 @@ pub(crate) async fn create_pool(
 #[derive(Template)]
 #[template(path = "pool.html")]
 struct ViewPoolTemplate {
+    application_name: String,
     pool: samey_pool::Model,
     posts: Vec<PoolPost>,
     can_edit: bool,
 }
 
 pub(crate) async fn view_pool(
-    State(AppState { db, .. }): State<AppState>,
+    State(AppState {
+        db,
+        application_name,
+        ..
+    }): State<AppState>,
     auth_session: AuthSession,
     Path(pool_id): Path<i32>,
 ) -> Result<impl IntoResponse, SameyError> {
+    let application_name = application_name.read().await.clone();
     let pool = SameyPool::find_by_id(pool_id)
         .one(&db)
         .await?
@@ -534,6 +568,7 @@ pub(crate) async fn view_pool(
 
     Ok(Html(
         ViewPoolTemplate {
+            application_name,
             pool,
             can_edit,
             posts,
@@ -763,11 +798,93 @@ pub(crate) async fn sort_pool(
     ))
 }
 
+// Settings views
+
+#[derive(Template)]
+#[template(path = "settings.html")]
+struct SettingsTemplate {
+    application_name: String,
+}
+
+pub(crate) async fn settings(
+    State(AppState {
+        db,
+        application_name,
+        ..
+    }): State<AppState>,
+    auth_session: AuthSession,
+) -> Result<impl IntoResponse, SameyError> {
+    if auth_session.user.is_none_or(|user| !user.is_admin) {
+        return Err(SameyError::Forbidden);
+    }
+
+    let application_name = application_name.read().await.clone();
+
+    let config = SameyConfig::find().all(&db).await?;
+
+    let values: HashMap<&str, Box<dyn Any>> = config
+        .iter()
+        .filter_map(|row| match row.key.as_str() {
+            key if key == APPLICATION_NAME_KEY => row
+                .data
+                .as_str()
+                .map::<(&str, Box<dyn Any>), _>(|data| (&row.key, Box::new(data.to_owned()))),
+            _ => None,
+        })
+        .collect();
+
+    Ok(Html(
+        SettingsTemplate { application_name }.render_with_values(&values)?,
+    ))
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct UpdateSettingsForm {
+    application_name: String,
+}
+
+pub(crate) async fn update_settings(
+    State(AppState {
+        db,
+        application_name,
+        ..
+    }): State<AppState>,
+    auth_session: AuthSession,
+    Form(body): Form<UpdateSettingsForm>,
+) -> Result<impl IntoResponse, SameyError> {
+    if auth_session.user.is_none_or(|user| !user.is_admin) {
+        return Err(SameyError::Forbidden);
+    }
+
+    let mut configs = vec![];
+
+    if !body.application_name.is_empty() {
+        *application_name.write().await = body.application_name.clone();
+        configs.push(samey_config::ActiveModel {
+            key: Set(APPLICATION_NAME_KEY.into()),
+            data: Set(body.application_name.into()),
+            ..Default::default()
+        });
+    }
+
+    SameyConfig::insert_many(configs)
+        .on_conflict(
+            OnConflict::column(samey_config::Column::Key)
+                .update_column(samey_config::Column::Data)
+                .to_owned(),
+        )
+        .exec(&db)
+        .await?;
+
+    Ok("")
+}
+
 // Single post views
 
 #[derive(Template)]
 #[template(path = "view_post.html")]
 struct ViewPostTemplate {
+    application_name: String,
     post: samey_post::Model,
     tags: Vec<samey_tag::Model>,
     tags_text: String,
@@ -778,10 +895,16 @@ struct ViewPostTemplate {
 }
 
 pub(crate) async fn view_post(
-    State(AppState { db, .. }): State<AppState>,
+    State(AppState {
+        db,
+        application_name,
+        ..
+    }): State<AppState>,
     auth_session: AuthSession,
     Path(post_id): Path<i32>,
 ) -> Result<impl IntoResponse, SameyError> {
+    let application_name = application_name.read().await.clone();
+
     let post_id = post_id;
     let tags = get_tags_for_post(post_id).all(&db).await?;
     let tags_text = tags.iter().map(|tag| &tag.name).join(" ");
@@ -851,6 +974,7 @@ pub(crate) async fn view_post(
 
     Ok(Html(
         ViewPostTemplate {
+            application_name,
             post,
             tags,
             tags_text,
@@ -1195,7 +1319,7 @@ pub(crate) async fn get_full_media(
 }
 
 pub(crate) async fn delete_post(
-    State(AppState { db, files_dir }): State<AppState>,
+    State(AppState { db, files_dir, .. }): State<AppState>,
     auth_session: AuthSession,
     Path(post_id): Path<i32>,
 ) -> Result<impl IntoResponse, SameyError> {

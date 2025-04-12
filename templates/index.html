@@ -4,11 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
-    <title>Samey</title>
+    <title>{{ application_name }}</title>
+    <meta name="generator" content="Samey {{ env!("CARGO_PKG_VERSION") }}" />
   </head>
   <body>
     <main>
-      <h1>Samey</h1>
+      <h1>{{ application_name }}</h1>
       <article>
         <h2>Search</h2>
         <form method="get" action="/posts/1">

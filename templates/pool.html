@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     <script src=" https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js "></script>
-    <title>Pool - {{ pool.name }} - Samey</title>
+    <title>Pool - {{ pool.name }} - {{ application_name }}</title>
+    <meta name="generator" content="Samey {{ env!("CARGO_PKG_VERSION") }}" />
     <meta property="og:title" content="{{ pool.name }}" />
     <meta property="og:url" content="/pool/{{ pool.id }}" />
     <meta property="twitter:title" content="{{ pool.name }}" />
