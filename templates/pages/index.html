@@ -11,12 +11,12 @@
         <h2>Search</h2>
         <form method="get" action="/posts/1">
           {% let tags_value = "" %} {% include "fragments/tags_input.html" %}
-          <ul class="tags-autocomplete" id="search-autocomplete"></ul>
+          <ul class="reset tags-autocomplete" id="search-autocomplete"></ul>
           <button type="submit">Search</button>
         </form>
       </article>
       <nav>
-        <ul>
+        <ul class="reset flex">
           <li>
             <a href="/posts/1">Posts</a>
           </li>

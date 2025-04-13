@@ -9,21 +9,8 @@
     <article>
       <h2>Search</h2>
       <form method="get" action="/posts">
-        <input
-          class="tags"
-          type="text"
-          id="search-tags"
-          name="tags"
-          placeholder="Tags"
-          hx-post="/search_tags"
-          hx-trigger="input changed"
-          hx-target="next .tags-autocomplete"
-          hx-vals="js:{selection_end: event.target.selectionEnd}"
-          hx-on::after-settle="this.focus(); this.setSelectionRange(-1, -1);"
-          value="{% if let Some(tags_text) = tags_text %}{{ tags_text }}{% endif %}"
-          autofocus
-        />
-        <ul class="tags-autocomplete" id="search-autocomplete"></ul>
+        {% let tags_value = tags_text.clone().unwrap_or("".into()) %} {% include "fragments/tags_input.html" %}
+        <ul class="reset tags-autocomplete" id="search-autocomplete"></ul>
         <button type="submit">Search</button>
       </form>
     </article>
@@ -45,7 +32,7 @@
       <div>No posts found!</div>
       {% else %}
       <div>
-        <ul>
+        <ul class="reset flex">
           {% for post in posts %}
           <li>
             <a
@@ -53,8 +40,10 @@
               title="{% if let Some(tags) = post.tags %}{{ tags }}{% endif %}"
             >
               <img src="/files/{{ post.thumbnail }}" />
-              <div>{{ post.rating | upper }}</div>
-              <div>{{ post.media_type }}</div>
+              <div class="flex">
+                <div>{{ post.rating | upper }}</div>
+                <div>{{ post.media_type }}</div>
+              </div>
             </a>
           </li>
           {% endfor %}

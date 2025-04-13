@@ -786,6 +786,57 @@ pub(crate) async fn view_pool(
 }
 
 #[derive(Debug, Deserialize)]
+pub(crate) struct ChangePoolNameForm {
+    pool_name: String,
+}
+
+#[derive(Template)]
+#[template(path = "fragments/change_pool_name.html")]
+struct ChangePoolNameTemplate {
+    pool_name: String,
+}
+
+pub(crate) async fn change_pool_name(
+    State(AppState { db, .. }): State<AppState>,
+    auth_session: AuthSession,
+    Path(pool_id): Path<i32>,
+    Form(body): Form<ChangePoolNameForm>,
+) -> Result<impl IntoResponse, SameyError> {
+    let pool = SameyPool::find_by_id(pool_id)
+        .one(&db)
+        .await?
+        .ok_or(SameyError::NotFound)?;
+
+    let can_edit = match auth_session.user.as_ref() {
+        None => false,
+        Some(user) => user.is_admin || pool.uploader_id == user.id,
+    };
+
+    if !can_edit {
+        return Err(SameyError::Forbidden);
+    }
+
+    if body.pool_name.trim().is_empty() {
+        return Err(SameyError::BadRequest("Pool name cannot be empty".into()));
+    }
+
+    SameyPool::update(samey_pool::ActiveModel {
+        id: Set(pool.id),
+        name: Set(body.pool_name.clone()),
+        ..Default::default()
+    })
+    .exec(&db)
+    .await?;
+
+    Ok(Html(
+        ChangePoolNameTemplate {
+            pool_name: body.pool_name,
+        }
+        .render()?,
+    ))
+}
+
+#[derive(Debug, Deserialize)]
 pub(crate) struct ChangePoolVisibilityForm {
     is_public: Option<String>,
 }
@@ -799,7 +850,7 @@ pub(crate) async fn change_pool_visibility(
     let pool = SameyPool::find_by_id(pool_id)
         .one(&db)
         .await?
-        .expect("Pool for samey_pool_post must exist");
+        .ok_or(SameyError::NotFound)?;
 
     let can_edit = match auth_session.user.as_ref() {
         None => false,

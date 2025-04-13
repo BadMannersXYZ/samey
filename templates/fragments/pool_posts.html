@@ -3,7 +3,7 @@
   <span>No posts in pool.</span>
   {% else %}
   <ul
-    class="sortable"
+    class="reset flex sortable"
     hx-put="/pool/{{ pool.id }}/sort"
     hx-trigger="end"
     hx-vals="js:{old_index: event.oldIndex, new_index: event.newIndex}"
@@ -11,11 +11,13 @@
     hx-swap="outerHTML"
   >
     {% for post in posts %}
-    <li class="pool-post">
+    <li class="pool-post flex flex-col">
       <a href="/post/{{ post.id }}" title="{{ post.tags }}">
         <img src="/files/{{ post.thumbnail }}" />
-        <div>{{ post.rating | upper }}</div>
-        <div>{{ post.media_type }}</div>
+        <div class="flex">
+          <div>{{ post.rating | upper }}</div>
+          <div>{{ post.media_type }}</div>
+        </div>
       </a>
       {% if can_edit %}
       <button
@@ -23,7 +25,7 @@
         hx-target="closest .pool-post"
         hx-swap="outerHTML"
       >
-        Remove
+        Remove from pool
       </button>
       {% endif %}
     </li>

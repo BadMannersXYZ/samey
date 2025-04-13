@@ -49,7 +49,7 @@
   <body>
     <div><a href="/">&lt; To home</a></div>
     <main>
-      <h1>Pool - {{ pool.name }}</h1>
+      <h1 id="pool-title">Pool - {{ pool.name }}</h1>
     </main>
     <article>
       <h2>Posts</h2>
@@ -57,23 +57,19 @@
     </article>
     {% if can_edit %}
     <article>
-      <form
-        hx-post="/pool/{{ pool.id }}/post"
-        hx-target="#pool-posts"
-        hx-swap="outerHTML"
-      >
-        <div>
-          <label>Add post</label>
-          <input
-            id="add-post-input"
-            type="text"
-            name="post_id"
-            placeholder="Post ID"
-            pattern="[0-9]*"
-          />
-          <button>Add</button>
-        </div>
-      </form>
+      <div>
+        <label>Rename pool</label>
+        <input
+          name="pool_name"
+          type="text"
+          hx-put="/pool/{{ pool.id }}/name"
+          hx-trigger="input changed delay:500ms, keyup[key=='Enter']"
+          hx-swap="none"
+          placeholder="Name"
+          pattern="[0-9]*"
+          value="{{ pool.name }}"
+        />
+      </div>
       <div>
         <label>Is public pool?</label>
         <input
@@ -89,6 +85,23 @@
           value="true"
         />
       </div>
+      <form
+        hx-post="/pool/{{ pool.id }}/post"
+        hx-target="#pool-posts"
+        hx-swap="outerHTML"
+      >
+        <div>
+          <label>Add post</label>
+          <input
+            id="add-post-input"
+            type="text"
+            name="post_id"
+            placeholder="Post ID"
+            pattern="[0-9]*"
+          />
+          <button>Add post</button>
+        </div>
+      </form>
     </article>
     {% endif %}
   </body>

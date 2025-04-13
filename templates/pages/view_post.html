@@ -3,37 +3,25 @@
   <head>
     <title>Post #{{ post.id }} - {{ application_name }}</title>
     {% include "fragments/common_headers.html" %}
-    <meta property="og:site_name" content="{{ application_name }}" />
-    <meta
-      property="og:title"
-      content="{% if let Some(title) = post.title %}{{ title }}{% endif %}"
-    />
+    {% if let Some(title) = post.title %}<meta property="og:title" content="{{ title }}"/>{% else %}<meta property="og:title" content="{{ tags_post }}" />{% endif %}
     <meta property="og:url" content="/post/{{ post.id }}" />
-    <meta
-      property="og:description"
-      content="{% if let Some(description) = post.description %}{{ description }}{% endif %}"
-    />
-    <meta
-      property="twitter:title"
-      content="{% if let Some(title) = post.title %}{{ title }}{% endif %}"
-    />
+    {% if let Some(description) = post.description %}<meta property="og:description" content="{{ description | markdown | escape }}" />{% endif %}
     {% match post.media_type.as_ref() %} {% when "image" %}
     <meta property="og:image" content="/files/{{ post.media }}" />
     <meta property="og:image:width" content="{{ post.width }}" />
     <meta property="og:image:height" content="{{ post.height }}" />
     <meta property="og:image:alt" content="{{ tags_post }}" />
     <meta property="twitter:card" content="summary_large_image" />
+    {% if let Some(title) = post.title %}<meta property="twitter:title" content="{{ title }}"/>{% else %}<meta property="twitter:title" content="{{ tags_post }}"/>{% endif %}
+    {% if let Some(description) = post.description %}<meta property="twitter:description" content="{{ description }}" />{% endif %}
+    <meta property="twitter:image" content="/files/{{ post.media }}" />
     {% when "video" %}
+    <meta property="og:type" content="video.other">
     <meta property="og:video" content="/files/{{ post.media }}" />
     <meta property="og:video:width" content="{{ post.width }}" />
     <meta property="og:video:height" content="{{ post.height }}" />
     <meta property="og:video:alt" content="{{ tags_post }}" />
     <meta property="og:video:type" content="video/mp4" />
-    <meta property="twitter:card" content="player" />
-    <meta name="twitter:player" content="/files/{{ post.media }}" />
-    <meta name="twitter:player:width" content="{{ post.width }}" />
-    <meta name="twitter:player:height" content="{{ post.height }}" />
-    <meta name="twitter:image" content="/files/{{ post.thumbnail }}" />
     {% else %} {% endmatch %}
   </head>
   <body>
@@ -54,7 +42,7 @@
           value="{% if let Some(tags_text) = tags_text %}{{ tags_text }}{% endif %}"
           autofocus
         />
-        <ul class="tags-autocomplete" id="search-autocomplete"></ul>
+        <ul class="reset tags-autocomplete" id="search-autocomplete"></ul>
         <button type="submit">Search</button>
       </form>
     </article>
@@ -74,7 +62,7 @@
     </article>
     <main>
       <h1>View post #{{ post.id }}</h1>
-      <div>
+      <div class="center-item">
         {% match post.media_type.as_ref() %}{% when "image" %}{% include
         "fragments/get_image_media.html" %}{% when "video" %}{% include
         "fragments/get_video_media.html" %}{% else %}{% endmatch %}
@@ -86,25 +74,31 @@
     </article>
     {% if let Some(parent_post) = parent_post %}
     <article id="parent-post">
-      <h2>Parent</h2>
-      <a href="/post/{{ parent_post.id }}" title="{% if let Some(tags) = parent_post.tags %}{{ tags }}{% endif %}">
-        <img src="/files/{{ parent_post.thumbnail }}" />
-        <div>{{ parent_post.rating }}</div>
-        <div>{{ parent_post.media_type }}</div>
-      </a>
+      <h2>Parent post</h2>
+      <div style="width: min-content">
+        <a href="/post/{{ parent_post.id }}" title="{% if let Some(tags) = parent_post.tags %}{{ tags }}{% endif %}">
+          <img src="/files/{{ parent_post.thumbnail }}" />
+          <div class="flex">
+            <div>{{ parent_post.rating | upper }}</div>
+            <div>{{ parent_post.media_type }}</div>
+          </div>
+        </a>
+      </div>
     </article>
     {% else %}
     <article id="parent-post" hidden></article>
     {% endif %} {% if !children_posts.is_empty() %}
     <article>
       <h2>Child posts</h2>
-      <ul>
+      <ul class="flex reset">
         {% for child_post in children_posts %}
         <li>
           <a href="/post/{{ child_post.id }}" title="{% if let Some(tags) = child_post.tags %}{{ tags }}{% endif %}">
             <img src="/files/{{ child_post.thumbnail }}" />
-            <div>{{ child_post.rating | upper }}</div>
-            <div>{{ child_post.media_type }}</div>
+            <div class="flex">
+              <div>{{ child_post.rating | upper }}</div>
+              <div>{{ child_post.media_type }}</div>
+            </div>
           </a>
         </li>
         {% endfor %}

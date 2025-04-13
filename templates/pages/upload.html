@@ -10,14 +10,14 @@
       <h1>Upload media</h1>
       <form method="post" action="/upload" enctype="multipart/form-data">
         {% let tags_value = "" %} {% include "fragments/tags_input.html" %}
-        <ul class="tags-autocomplete" id="upload-autocomplete"></ul>
+        <ul class="reset tags-autocomplete" id="upload-autocomplete"></ul>
         <input
           type="file"
           id="media-file"
           name="media-file"
           accept=".jpg, .jpeg, .png, .webp, .gif, .mp4, .webm, .mkv, .mov"
         />
-        <button type="submit">Submit</button>
+        <button type="submit">Create post</button>
       </form>
     </main>
   </body>

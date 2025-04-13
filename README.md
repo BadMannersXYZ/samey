@@ -8,7 +8,7 @@ Sam's small image board. Currently a WIP.
 
 ## TODO
 
-- [ ] Rename pool
+- [ ] Show pool(s) in post
 - [ ] CSS
 - [ ] Logging, better errors...
 

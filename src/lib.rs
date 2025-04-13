@@ -133,6 +133,7 @@ pub async fn get_router(
         .route_with_tsr("/pools/{page}", get(get_pools_page))
         .route_with_tsr("/pool", post(create_pool))
         .route_with_tsr("/pool/{pool_id}", get(view_pool))
+        .route_with_tsr("/pool/{pool_id}/name", put(change_pool_name))
         .route_with_tsr("/pool/{pool_id}/public", put(change_pool_visibility))
         .route_with_tsr("/pool/{pool_id}/post", post(add_post_to_pool))
         .route_with_tsr("/pool/{pool_id}/sort", put(sort_pool))

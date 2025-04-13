@@ -1,14 +1,19 @@
 {% include "fragments/post_details.html" %} {% if let Some(parent_post) =
 parent_post %}
 <article id="parent-post" hx-swap-oob="outerHTML">
-  <h2>Parent</h2>
-  <a
-    href="/post/{{ parent_post.id }}"
-    title="{% if let Some(tags) = parent_post.tags %}{{ tags }}{% endif %}"
-  >
-    <img src="/files/{{ parent_post.thumbnail }}" />
-    <div>{{ parent_post.rating }}</div>
-  </a>
+  <h2>Parent post</h2>
+  <div style="width: min-content">
+    <a
+      href="/post/{{ parent_post.id }}"
+      title="{% if let Some(tags) = parent_post.tags %}{{ tags }}{% endif %}"
+    >
+      <img src="/files/{{ parent_post.thumbnail }}" />
+      <div class="flex">
+        <div>{{ parent_post.rating | upper }}</div>
+        <div>{{ parent_post.media_type }}</div>
+      </div>
+    </a>
+  </div>
 </article>
 {% else %}
 <article id="parent-post" hx-swap-oob="outerHTML" hidden></article>
