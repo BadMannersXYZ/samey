@@ -1,7 +1,12 @@
+use askama::Template;
 use axum::{
     http::StatusCode,
-    response::{IntoResponse, Response},
+    response::{Html, IntoResponse, Response},
 };
+
+#[derive(askama::Template)]
+#[template(path = "pages/not_found.html")]
+struct NotFoundTemplate;
 
 #[derive(Debug, thiserror::Error)]
 pub enum SameyError {
@@ -47,7 +52,15 @@ impl IntoResponse for SameyError {
             SameyError::Multipart(_) | SameyError::BadRequest(_) => {
                 (StatusCode::BAD_REQUEST, "Invalid request").into_response()
             }
-            SameyError::NotFound => (StatusCode::NOT_FOUND, "Resource not found").into_response(),
+            SameyError::NotFound => (
+                StatusCode::NOT_FOUND,
+                Html(
+                    NotFoundTemplate {}
+                        .render()
+                        .expect("shouldn't fail to render NotFoundTemplate"),
+                ),
+            )
+                .into_response(),
             SameyError::Authentication(_) => {
                 (StatusCode::UNAUTHORIZED, "Not authorized").into_response()
             }

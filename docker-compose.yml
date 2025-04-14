@@ -1,0 +1,12 @@
+services:
+  samey:
+    image: badmanners/samey:latest
+    container_name: samey
+    restart: unless-stopped
+    ports:
+      - 8080:3000
+    volumes:
+      - ./files:/files:rw
+      - type: bind
+        source: ./db.sqlite3
+        target: /db.sqlite3

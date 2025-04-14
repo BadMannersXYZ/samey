@@ -1,0 +1,20 @@
+<dialog
+  x-init="localStorage.ageVerified !== 'true' && $el.showModal()"
+  @cancel.prevent
+  @close-modal="$el.close()"
+>
+  <header>Age restricted website</header>
+  <p>You must be 18+ to access this page.</p>
+  <p>
+    By confirming that you are at least 18 years old, your selection will be
+    saved to your browser to prevent this screen from appearing in the future.
+  </p>
+  <menu>
+    <button
+      @click="localStorage.ageVerified = 'true'; $event.target.dispatchEvent(new CustomEvent('close-modal', { bubbles: true }))"
+    >
+      I agree and am 18+ years old
+    </button>
+    <button @click="location.href = 'about:blank'">Take me back!</button>
+  </menu>
+</dialog>

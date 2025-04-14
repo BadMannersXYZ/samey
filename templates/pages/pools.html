@@ -2,9 +2,12 @@
 <html lang="en">
   <head>
     <title>Pools - {{ application_name }}</title>
+    <meta property="og:site_name" content="{{ application_name }}" />
     {% include "fragments/common_headers.html" %}
   </head>
   <body>
+    {% if age_confirmation %}{% include "fragments/age_restricted_check.html"
+    %}{% endif %}
     <div><a href="/">&lt; To home</a></div>
     <main>
       <h1>Pools</h1>
@@ -18,8 +21,10 @@
         </li>
         {% endfor %}
       </ul>
+      <hr />
       <div>
-        <ul>
+        <div class="flex"><span>Pages</span></div>
+        <ul class="reset flex">
           {% for i in 1..=page_count %}
           <li>
             {% if i == page as u64 %}

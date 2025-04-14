@@ -21,15 +21,14 @@ use axum::{
 };
 use axum_extra::routing::RouterExt;
 use axum_login::AuthManagerLayerBuilder;
-use entities::{prelude::SameyConfig, samey_config};
 use password_auth::generate_hash;
-use sea_orm::{ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::{ActiveValue::Set, DatabaseConnection, EntityTrait};
 use tokio::{fs, sync::RwLock};
 use tower_http::services::ServeDir;
 use tower_sessions::SessionManagerLayer;
 
 use crate::auth::{Backend, SessionStorage};
-use crate::config::APPLICATION_NAME_KEY;
+use crate::config::AppConfig;
 use crate::entities::{prelude::SameyUser, samey_user};
 pub use crate::error::SameyError;
 use crate::views::*;
@@ -61,7 +60,7 @@ fn assets_router() -> Router {
 pub(crate) struct AppState {
     files_dir: Arc<PathBuf>,
     db: DatabaseConnection,
-    application_name: Arc<RwLock<String>>,
+    app_config: Arc<RwLock<AppConfig>>,
 }
 
 pub async fn create_user(
@@ -85,18 +84,10 @@ pub async fn get_router(
     db: DatabaseConnection,
     files_dir: impl AsRef<Path>,
 ) -> Result<Router, SameyError> {
-    let application_name = match SameyConfig::find()
-        .filter(samey_config::Column::Key.eq(APPLICATION_NAME_KEY))
-        .one(&db)
-        .await?
-    {
-        Some(row) => row.data.as_str().unwrap_or("Samey").to_owned(),
-        None => "Samey".to_owned(),
-    };
     let state = AppState {
         files_dir: Arc::new(files_dir.as_ref().to_owned()),
         db: db.clone(),
-        application_name: Arc::new(RwLock::new(application_name)),
+        app_config: Arc::new(RwLock::new(AppConfig::new(&db).await?)),
     };
     fs::create_dir_all(files_dir.as_ref()).await?;
 
@@ -125,8 +116,6 @@ pub async fn get_router(
             get(post_details).put(submit_post_details),
         )
         .route_with_tsr("/post_source", post(add_post_source))
-        .route_with_tsr("/media/{post_id}/full", get(get_full_media))
-        .route_with_tsr("/media/{post_id}", get(get_media))
         // Pool routes
         .route_with_tsr("/create_pool", get(create_pool_page))
         .route_with_tsr("/pools", get(get_pools))
@@ -139,7 +128,7 @@ pub async fn get_router(
         .route_with_tsr("/pool/{pool_id}/sort", put(sort_pool))
         .route_with_tsr("/pool_post/{pool_post_id}", delete(remove_pool_post))
         // Settings routes
-        .route_with_tsr("/settings", get(settings).put(update_settings))
+        .route_with_tsr("/settings", get(settings).post(update_settings))
         // Search routes
         .route_with_tsr("/posts", get(posts))
         .route_with_tsr("/posts/{page}", get(posts_page))

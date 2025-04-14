@@ -2,6 +2,7 @@
 <html lang="en">
   <head>
     <title>Pool - {{ pool.name }} - {{ application_name }}</title>
+    <meta property="og:site_name" content="{{ application_name }}" />
     {% include "fragments/common_headers.html" %}
     <script src="/static/sortable.js"></script>
     <meta property="og:title" content="{{ pool.name }}" />
@@ -47,16 +48,37 @@
     {% endif %}
   </head>
   <body>
+    {% if age_confirmation %}{% include "fragments/age_restricted_check.html"
+    %}{% endif %}
     <div><a href="/">&lt; To home</a></div>
     <main>
       <h1 id="pool-title">Pool - {{ pool.name }}</h1>
+      <article>
+        <h2>Posts</h2>
+        {% include "fragments/pool_posts.html" %}
+      </article>
     </main>
-    <article>
-      <h2>Posts</h2>
-      {% include "fragments/pool_posts.html" %}
-    </article>
     {% if can_edit %}
+    <hr />
     <article>
+      <h2>Add post to pool</h2>
+      <form
+        hx-post="/pool/{{ pool.id }}/post"
+        hx-target="#pool-posts"
+        hx-swap="outerHTML"
+      >
+        <input
+          id="add-post-input"
+          type="text"
+          name="post_id"
+          placeholder="Post ID"
+          pattern="[0-9]*"
+        />
+        <button>Add post</button>
+      </form>
+    </article>
+    <article>
+      <h2>Pool settings</h2>
       <div>
         <label>Rename pool</label>
         <input
@@ -66,7 +88,6 @@
           hx-trigger="input changed delay:500ms, keyup[key=='Enter']"
           hx-swap="none"
           placeholder="Name"
-          pattern="[0-9]*"
           value="{{ pool.name }}"
         />
       </div>
@@ -85,23 +106,6 @@
           value="true"
         />
       </div>
-      <form
-        hx-post="/pool/{{ pool.id }}/post"
-        hx-target="#pool-posts"
-        hx-swap="outerHTML"
-      >
-        <div>
-          <label>Add post</label>
-          <input
-            id="add-post-input"
-            type="text"
-            name="post_id"
-            placeholder="Post ID"
-            pattern="[0-9]*"
-          />
-          <button>Add post</button>
-        </div>
-      </form>
     </article>
     {% endif %}
   </body>

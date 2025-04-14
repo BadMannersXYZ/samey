@@ -2,6 +2,7 @@
 <html lang="en">
   <head>
     <title>Post #{{ post.id }} - {{ application_name }}</title>
+    <meta property="og:site_name" content="{{ application_name }}" />
     {% include "fragments/common_headers.html" %}
     {% if let Some(title) = post.title %}<meta property="og:title" content="{{ title }}"/>{% else %}<meta property="og:title" content="{{ tags_post }}" />{% endif %}
     <meta property="og:url" content="/post/{{ post.id }}" />
@@ -12,11 +13,11 @@
     <meta property="og:image:height" content="{{ post.height }}" />
     <meta property="og:image:alt" content="{{ tags_post }}" />
     <meta property="twitter:card" content="summary_large_image" />
-    {% if let Some(title) = post.title %}<meta property="twitter:title" content="{{ title }}"/>{% else %}<meta property="twitter:title" content="{{ tags_post }}"/>{% endif %}
+    {% if let Some(title) = post.title %}<meta property="twitter:title" content="{{ title }}"/>{% else %}<meta property="twitter:title" content="{{ tags_post }}" />{% endif %}
     {% if let Some(description) = post.description %}<meta property="twitter:description" content="{{ description }}" />{% endif %}
     <meta property="twitter:image" content="/files/{{ post.media }}" />
     {% when "video" %}
-    <meta property="og:type" content="video.other">
+    <meta property="og:type" content="video.other" />
     <meta property="og:video" content="/files/{{ post.media }}" />
     <meta property="og:video:width" content="{{ post.width }}" />
     <meta property="og:video:height" content="{{ post.height }}" />
@@ -25,6 +26,8 @@
     {% else %} {% endmatch %}
   </head>
   <body>
+    {% if age_confirmation %}{% include "fragments/age_restricted_check.html"
+    %}{% endif %}
     <div><a href="{% if let Some(tags_text) = tags_text %}/posts/1?tags={{ tags_text.replace(' ', "+") }}{% else %}/posts/1{% endif %}">&lt; To posts</a></div>
     <article>
       <h2>Search</h2>
@@ -34,44 +37,48 @@
           type="text"
           id="search-tags"
           name="tags"
+          placeholder="Tags"
           hx-post="/search_tags"
           hx-trigger="input changed"
           hx-target="next .tags-autocomplete"
           hx-vals="js:{selection_end: event.target.selectionEnd}"
           hx-on::after-settle="this.focus(); this.setSelectionRange(-1, -1);"
           value="{% if let Some(tags_text) = tags_text %}{{ tags_text }}{% endif %}"
-          autofocus
         />
         <ul class="reset tags-autocomplete" id="search-autocomplete"></ul>
         <button type="submit">Search</button>
       </form>
     </article>
     <article>
-      <h2>Tags</h2>
-      {% if tags.is_empty() %}
-      <p>No tags in post. Consider adding some!</p>
-      {% else %}
-      <ul id="tags-list">
-        {% for tag in tags %}
-        <li>
-          <a href="/posts?tags={{ tag.name }}">{{ tag.name }}</a>
-        </li>
+      <table>
+        {% for item in pool_data %}
+        <tr>
+          <td>
+            {% if let Some(previous_post_id) = item.previous_post_id %}
+            <a href="/post/{{ previous_post_id }}">&lt; Previous</a>
+            {% endif %}
+          </td>
+          <th>
+            <a href="/pool/{{ item.id }}">Pool: {{ item.name }}</a>
+          </th>
+          <td>
+            {% if let Some(next_post_id) = item.next_post_id %}
+            <a href="/post/{{ next_post_id }}">Next &gt;</a>
+            {% endif %}
+          </td>
+        </tr>
         {% endfor %}
-      </ul>
-      {% endif %}
+      </table>
     </article>
     <main>
       <h1>View post #{{ post.id }}</h1>
-      <div class="center-item">
+      <div class="center-item" x-data="{ maximized: false, width: {{ post.width }}, height: {{ post.height }} }">
         {% match post.media_type.as_ref() %}{% when "image" %}{% include
         "fragments/get_image_media.html" %}{% when "video" %}{% include
         "fragments/get_video_media.html" %}{% else %}{% endmatch %}
       </div>
     </main>
-    <article>
-      <h2>Details</h2>
-      {% include "fragments/post_details.html" %}
-    </article>
+    {% include "fragments/post_details.html" %}
     {% if let Some(parent_post) = parent_post %}
     <article id="parent-post">
       <h2>Parent post</h2>
@@ -105,5 +112,19 @@
       </ul>
     </article>
     {% endif %}
+    <article>
+      <h2>Tags</h2>
+      {% if tags.is_empty() %}
+      <p>No tags in post. Consider adding some!</p>
+      {% else %}
+      <ul id="tags-list">
+        {% for tag in tags %}
+        <li>
+          <a href="/posts?tags={{ tag.name }}">{{ tag.name }}</a>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </article>
   </body>
 </html>

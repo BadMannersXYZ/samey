@@ -3,6 +3,7 @@ use std::{
     collections::{HashMap, HashSet},
     fs::OpenOptions,
     io::{BufReader, Seek, Write},
+    mem,
     num::NonZero,
     str::FromStr,
 };
@@ -28,7 +29,7 @@ use tokio::{task::spawn_blocking, try_join};
 use crate::{
     AppState, NEGATIVE_PREFIX, RATING_PREFIX,
     auth::{AuthSession, Credentials, User},
-    config::APPLICATION_NAME_KEY,
+    config::{AGE_CONFIRMATION_KEY, APPLICATION_NAME_KEY},
     entities::{
         prelude::{
             SameyConfig, SameyPool, SameyPoolPost, SameyPost, SameyPostSource, SameyTag,
@@ -39,8 +40,8 @@ use crate::{
     },
     error::SameyError,
     query::{
-        PoolPost, PostOverview, filter_posts_by_user, get_posts_in_pool, get_tags_for_post,
-        search_posts,
+        PoolPost, PostOverview, PostPoolData, filter_posts_by_user, get_pool_data_for_post,
+        get_posts_in_pool, get_tags_for_post, search_posts,
     },
     video::{generate_thumbnail, get_dimensions_for_video},
 };
@@ -67,19 +68,22 @@ mod filters {
 #[template(path = "pages/index.html")]
 struct IndexTemplate {
     application_name: String,
+    age_confirmation: bool,
     user: Option<User>,
 }
 
 pub(crate) async fn index(
-    State(AppState {
-        application_name, ..
-    }): State<AppState>,
+    State(AppState { app_config, .. }): State<AppState>,
     auth_session: AuthSession,
 ) -> Result<impl IntoResponse, SameyError> {
-    let application_name = application_name.read().await.clone();
+    let app_config = app_config.read().await;
+    let application_name = app_config.application_name.clone();
+    let age_confirmation = app_config.age_confirmation;
+    drop(app_config);
     Ok(Html(
         IndexTemplate {
             application_name,
+            age_confirmation,
             user: auth_session.user,
         }
         .render()?,
@@ -92,21 +96,30 @@ pub(crate) async fn index(
 #[template(path = "pages/login.html")]
 struct LoginPageTemplate {
     application_name: String,
+    age_confirmation: bool,
 }
 
 pub(crate) async fn login_page(
-    State(AppState {
-        application_name, ..
-    }): State<AppState>,
+    State(AppState { app_config, .. }): State<AppState>,
     auth_session: AuthSession,
 ) -> Result<impl IntoResponse, SameyError> {
     if auth_session.user.is_some() {
         return Ok(Redirect::to("/").into_response());
     }
 
-    let application_name = application_name.read().await.clone();
+    let app_config = app_config.read().await;
+    let application_name = app_config.application_name.clone();
+    let age_confirmation = app_config.age_confirmation;
+    drop(app_config);
 
-    Ok(Html(LoginPageTemplate { application_name }.render()?).into_response())
+    Ok(Html(
+        LoginPageTemplate {
+            application_name,
+            age_confirmation,
+        }
+        .render()?,
+    )
+    .into_response())
 }
 
 pub(crate) async fn login(
@@ -140,21 +153,30 @@ pub(crate) async fn logout(mut auth_session: AuthSession) -> Result<impl IntoRes
 #[template(path = "pages/upload.html")]
 struct UploadPageTemplate {
     application_name: String,
+    age_confirmation: bool,
 }
 
 pub(crate) async fn upload_page(
-    State(AppState {
-        application_name, ..
-    }): State<AppState>,
+    State(AppState { app_config, .. }): State<AppState>,
     auth_session: AuthSession,
 ) -> Result<impl IntoResponse, SameyError> {
     if auth_session.user.is_none() {
         return Err(SameyError::Forbidden);
     }
 
-    let application_name = application_name.read().await.clone();
+    let app_config = app_config.read().await;
+    let application_name = app_config.application_name.clone();
+    let age_confirmation = app_config.age_confirmation;
+    drop(app_config);
 
-    Ok(Html(UploadPageTemplate { application_name }.render()?).into_response())
+    Ok(Html(
+        UploadPageTemplate {
+            application_name,
+            age_confirmation,
+        }
+        .render()?,
+    )
+    .into_response())
 }
 
 enum Format {
@@ -572,6 +594,7 @@ pub(crate) async fn select_tag(
 #[template(path = "pages/posts.html")]
 struct PostsTemplate<'a> {
     application_name: String,
+    age_confirmation: bool,
     tags: Option<Vec<&'a str>>,
     tags_text: Option<String>,
     posts: Vec<PostOverview>,
@@ -593,16 +616,15 @@ pub(crate) async fn posts(
 }
 
 pub(crate) async fn posts_page(
-    State(AppState {
-        db,
-        application_name,
-        ..
-    }): State<AppState>,
+    State(AppState { db, app_config, .. }): State<AppState>,
     auth_session: AuthSession,
     Query(query): Query<PostsQuery>,
     Path(page): Path<u32>,
 ) -> Result<impl IntoResponse, SameyError> {
-    let application_name = application_name.read().await.clone();
+    let app_config = app_config.read().await;
+    let application_name = app_config.application_name.clone();
+    let age_confirmation = app_config.age_confirmation;
+    drop(app_config);
     let tags = query
         .tags
         .as_ref()
@@ -625,6 +647,7 @@ pub(crate) async fn posts_page(
     Ok(Html(
         PostsTemplate {
             application_name,
+            age_confirmation,
             tags_text: tags.as_ref().map(|tags| tags.iter().join(" ")),
             tags,
             posts,
@@ -641,21 +664,30 @@ pub(crate) async fn posts_page(
 #[template(path = "pages/create_pool.html")]
 struct CreatePoolPageTemplate {
     application_name: String,
+    age_confirmation: bool,
 }
 
 pub(crate) async fn create_pool_page(
-    State(AppState {
-        application_name, ..
-    }): State<AppState>,
+    State(AppState { app_config, .. }): State<AppState>,
     auth_session: AuthSession,
 ) -> Result<impl IntoResponse, SameyError> {
     if auth_session.user.is_none() {
         return Err(SameyError::Forbidden);
     }
 
-    let application_name = application_name.read().await.clone();
+    let app_config = app_config.read().await;
+    let application_name = app_config.application_name.clone();
+    let age_confirmation = app_config.age_confirmation;
+    drop(app_config);
 
-    Ok(Html(CreatePoolPageTemplate { application_name }.render()?).into_response())
+    Ok(Html(
+        CreatePoolPageTemplate {
+            application_name,
+            age_confirmation,
+        }
+        .render()?,
+    )
+    .into_response())
 }
 
 pub(crate) async fn get_pools(
@@ -669,21 +701,21 @@ pub(crate) async fn get_pools(
 #[template(path = "pages/pools.html")]
 struct GetPoolsTemplate {
     application_name: String,
+    age_confirmation: bool,
     pools: Vec<samey_pool::Model>,
     page: u32,
     page_count: u64,
 }
 
 pub(crate) async fn get_pools_page(
-    State(AppState {
-        db,
-        application_name,
-        ..
-    }): State<AppState>,
+    State(AppState { db, app_config, .. }): State<AppState>,
     auth_session: AuthSession,
     Path(page): Path<u32>,
 ) -> Result<impl IntoResponse, SameyError> {
-    let application_name = application_name.read().await.clone();
+    let app_config = app_config.read().await;
+    let application_name = app_config.application_name.clone();
+    let age_confirmation = app_config.age_confirmation;
+    drop(app_config);
     let query = match auth_session.user {
         None => SameyPool::find().filter(samey_pool::Column::IsPublic.into_simple_expr()),
         Some(user) if user.is_admin => SameyPool::find(),
@@ -702,6 +734,7 @@ pub(crate) async fn get_pools_page(
     Ok(Html(
         GetPoolsTemplate {
             application_name,
+            age_confirmation,
             pools,
             page,
             page_count,
@@ -741,21 +774,21 @@ pub(crate) async fn create_pool(
 #[template(path = "pages/pool.html")]
 struct ViewPoolTemplate {
     application_name: String,
+    age_confirmation: bool,
     pool: samey_pool::Model,
     posts: Vec<PoolPost>,
     can_edit: bool,
 }
 
 pub(crate) async fn view_pool(
-    State(AppState {
-        db,
-        application_name,
-        ..
-    }): State<AppState>,
+    State(AppState { db, app_config, .. }): State<AppState>,
     auth_session: AuthSession,
     Path(pool_id): Path<i32>,
 ) -> Result<impl IntoResponse, SameyError> {
-    let application_name = application_name.read().await.clone();
+    let app_config = app_config.read().await;
+    let application_name = app_config.application_name.clone();
+    let age_confirmation = app_config.age_confirmation;
+    drop(app_config);
     let pool = SameyPool::find_by_id(pool_id)
         .one(&db)
         .await?
@@ -777,6 +810,7 @@ pub(crate) async fn view_pool(
     Ok(Html(
         ViewPoolTemplate {
             application_name,
+            age_confirmation,
             pool,
             can_edit,
             posts,
@@ -1063,21 +1097,21 @@ pub(crate) async fn sort_pool(
 #[template(path = "pages/settings.html")]
 struct SettingsTemplate {
     application_name: String,
+    age_confirmation: bool,
 }
 
 pub(crate) async fn settings(
-    State(AppState {
-        db,
-        application_name,
-        ..
-    }): State<AppState>,
+    State(AppState { db, app_config, .. }): State<AppState>,
     auth_session: AuthSession,
 ) -> Result<impl IntoResponse, SameyError> {
     if auth_session.user.is_none_or(|user| !user.is_admin) {
         return Err(SameyError::Forbidden);
     }
 
-    let application_name = application_name.read().await.clone();
+    let app_config = app_config.read().await;
+    let application_name = app_config.application_name.clone();
+    let age_confirmation = app_config.age_confirmation;
+    drop(app_config);
 
     let config = SameyConfig::find().all(&db).await?;
 
@@ -1093,21 +1127,22 @@ pub(crate) async fn settings(
         .collect();
 
     Ok(Html(
-        SettingsTemplate { application_name }.render_with_values(&values)?,
+        SettingsTemplate {
+            application_name,
+            age_confirmation,
+        }
+        .render_with_values(&values)?,
     ))
 }
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct UpdateSettingsForm {
     application_name: String,
+    age_confirmation: Option<bool>,
 }
 
 pub(crate) async fn update_settings(
-    State(AppState {
-        db,
-        application_name,
-        ..
-    }): State<AppState>,
+    State(AppState { db, app_config, .. }): State<AppState>,
     auth_session: AuthSession,
     Form(body): Form<UpdateSettingsForm>,
 ) -> Result<impl IntoResponse, SameyError> {
@@ -1118,7 +1153,10 @@ pub(crate) async fn update_settings(
     let mut configs = vec![];
 
     if !body.application_name.is_empty() {
-        *application_name.write().await = body.application_name.clone();
+        let _ = mem::replace(
+            &mut app_config.write().await.application_name,
+            body.application_name.clone(),
+        );
         configs.push(samey_config::ActiveModel {
             key: Set(APPLICATION_NAME_KEY.into()),
             data: Set(body.application_name.into()),
@@ -1126,16 +1164,29 @@ pub(crate) async fn update_settings(
         });
     }
 
-    SameyConfig::insert_many(configs)
-        .on_conflict(
-            OnConflict::column(samey_config::Column::Key)
-                .update_column(samey_config::Column::Data)
-                .to_owned(),
-        )
-        .exec(&db)
-        .await?;
+    let age_confirmation = body.age_confirmation.is_some();
+    let _ = mem::replace(
+        &mut app_config.write().await.age_confirmation,
+        age_confirmation,
+    );
+    configs.push(samey_config::ActiveModel {
+        key: Set(AGE_CONFIRMATION_KEY.into()),
+        data: Set(age_confirmation.into()),
+        ..Default::default()
+    });
 
-    Ok("")
+    if !configs.is_empty() {
+        SameyConfig::insert_many(configs)
+            .on_conflict(
+                OnConflict::column(samey_config::Column::Key)
+                    .update_column(samey_config::Column::Data)
+                    .to_owned(),
+            )
+            .exec(&db)
+            .await?;
+    }
+
+    Ok(Redirect::to("/"))
 }
 
 // Single post views
@@ -1144,7 +1195,9 @@ pub(crate) async fn update_settings(
 #[template(path = "pages/view_post.html")]
 struct ViewPostPageTemplate {
     application_name: String,
+    age_confirmation: bool,
     post: samey_post::Model,
+    pool_data: Vec<PostPoolData>,
     tags: Vec<samey_tag::Model>,
     tags_text: Option<String>,
     tags_post: String,
@@ -1155,18 +1208,30 @@ struct ViewPostPageTemplate {
 }
 
 pub(crate) async fn view_post_page(
-    State(AppState {
-        db,
-        application_name,
-        ..
-    }): State<AppState>,
+    State(AppState { db, app_config, .. }): State<AppState>,
     auth_session: AuthSession,
     Query(query): Query<PostsQuery>,
     Path(post_id): Path<i32>,
 ) -> Result<impl IntoResponse, SameyError> {
-    let application_name = application_name.read().await.clone();
+    let app_config = app_config.read().await;
+    let application_name = app_config.application_name.clone();
+    let age_confirmation = app_config.age_confirmation;
+    drop(app_config);
 
-    let post_id = post_id;
+    let post = SameyPost::find_by_id(post_id)
+        .one(&db)
+        .await?
+        .ok_or(SameyError::NotFound)?;
+
+    let can_edit = match auth_session.user.as_ref() {
+        None => false,
+        Some(user) => user.is_admin || post.uploader_id == user.id,
+    };
+
+    if !post.is_public && !can_edit {
+        return Err(SameyError::NotFound);
+    }
+
     let tags = get_tags_for_post(post_id).all(&db).await?;
     let tags_post = tags.iter().map(|tag| &tag.name).join(" ");
 
@@ -1174,11 +1239,6 @@ pub(crate) async fn view_post_page(
         .filter(samey_post_source::Column::PostId.eq(post_id))
         .all(&db)
         .await?;
-
-    let post = SameyPost::find_by_id(post_id)
-        .one(&db)
-        .await?
-        .ok_or(SameyError::NotFound)?;
 
     let parent_post = if let Some(parent_id) = post.parent_id {
         match filter_posts_by_user(SameyPost::find_by_id(parent_id), auth_session.user.as_ref())
@@ -1230,19 +1290,14 @@ pub(crate) async fn view_post_page(
         });
     }
 
-    let can_edit = match auth_session.user {
-        None => false,
-        Some(user) => user.is_admin || post.uploader_id == user.id,
-    };
-
-    if !post.is_public && !can_edit {
-        return Err(SameyError::NotFound);
-    }
+    let pool_data = get_pool_data_for_post(&db, post_id, auth_session.user.as_ref()).await?;
 
     Ok(Html(
         ViewPostPageTemplate {
             application_name,
+            age_confirmation,
             post,
+            pool_data,
             tags,
             tags_text: query.tags,
             tags_post,
@@ -1536,62 +1591,6 @@ pub(crate) async fn add_post_source() -> Result<impl IntoResponse, SameyError> {
 
 pub(crate) async fn remove_field() -> impl IntoResponse {
     ""
-}
-
-#[derive(Template)]
-#[template(path = "fragments/get_image_media.html")]
-struct GetMediaTemplate {
-    post: samey_post::Model,
-}
-
-pub(crate) async fn get_media(
-    State(AppState { db, .. }): State<AppState>,
-    auth_session: AuthSession,
-    Path(post_id): Path<i32>,
-) -> Result<impl IntoResponse, SameyError> {
-    let post = SameyPost::find_by_id(post_id)
-        .one(&db)
-        .await?
-        .ok_or(SameyError::NotFound)?;
-
-    let can_edit = match auth_session.user {
-        None => false,
-        Some(user) => user.is_admin || post.uploader_id == user.id,
-    };
-
-    if !post.is_public && !can_edit {
-        return Err(SameyError::NotFound);
-    }
-
-    Ok(Html(GetMediaTemplate { post }.render()?))
-}
-
-#[derive(Template)]
-#[template(path = "fragments/get_full_image_media.html")]
-struct GetFullMediaTemplate {
-    post: samey_post::Model,
-}
-
-pub(crate) async fn get_full_media(
-    State(AppState { db, .. }): State<AppState>,
-    auth_session: AuthSession,
-    Path(post_id): Path<i32>,
-) -> Result<impl IntoResponse, SameyError> {
-    let post = SameyPost::find_by_id(post_id)
-        .one(&db)
-        .await?
-        .ok_or(SameyError::NotFound)?;
-
-    let can_edit = match auth_session.user {
-        None => false,
-        Some(user) => user.is_admin || post.uploader_id == user.id,
-    };
-
-    if !post.is_public && !can_edit {
-        return Err(SameyError::NotFound);
-    }
-
-    Ok(Html(GetFullMediaTemplate { post }.render()?))
 }
 
 pub(crate) async fn delete_post(

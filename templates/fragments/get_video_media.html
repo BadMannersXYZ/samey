@@ -2,5 +2,5 @@
   id="media"
   src="/files/{{ post.media }}"
   controls="controls"
-  style="width: 100%; height: 100%; max-width: {{ post.width }}px; max-height: {{ post.height }}px; aspect-ratio: {{ post.width }} / {{ post.height }}"
-/>
+  :style="{ width: '100%', height: '100%', 'max-width': width + 'px', 'max-height': height + 'px', 'aspect-ratio': width + ' / ' + height }"
+></video>

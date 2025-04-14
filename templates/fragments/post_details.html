@@ -1,55 +1,58 @@
-<div id="post-details" hx-target="this" hx-swap="outerHTML">
-  <div>
-    <label>Title</label>
-    {% if let Some(title) = post.title %}{{ title }}{% else %}<em>None</em>{%
+<article id="post-details" hx-target="this" hx-swap="outerHTML">
+  <h2>
+    {% if let Some(title) = post.title %}{{ title }}{% else %}Details{%
     endif %}
-  </div>
-  <div>
-    <label>Description</label>
-    {% if let Some(description) = post.description %}{{ description | markdown
-    }}{% else %}
-    <p><em>None</em></p>
-    {% endif %}
-  </div>
-  <div>
-    <label>Is public?</label>
-    {% if post.is_public %}Yes{% else %}No{% endif %}
-  </div>
-  <div>
-    <label>Rating</label>
-    {% match post.rating.as_ref() %} {% when "u" %} Unrated {% when "s" %} Safe
-    {% when "q" %} Questionable {% when "e" %} Explicit {% else %} Unknown {%
-    endmatch %}
-  </div>
-  <div>
-    <label>Source(s)</label>
-    {% if sources.is_empty() %}
-    <em>None</em>{% else %}
-    <ul>
-      {% for source in sources %}
-      <li id="source-{{ source.id }}">
-        <a href="{{ source.url }}">{{ source.url }}</a>
-      </li>
-      {% endfor %}
-    </ul>
-    {% endif %}
-  </div>
-  <div>
-    <label>Type</label>
-    {{ post.media_type | capitalize }}
-  </div>
-  <div>
-    <label>Width</label>
-    {{ post.width }}px
-  </div>
-  <div>
-    <label>Height</label>
-    {{ post.height }}px
-  </div>
-  <div>
-    <label>Upload date</label>
-    {{ post.uploaded_at }}
-  </div>
+  </h2>
+  {% if let Some(description) = post.description %}
+  <div id="description">{{ description | markdown }}</div>
+  {% endif %}
+  <table>
+    <tr>
+      <th>Is public post?</th>
+      <td>
+        {% if post.is_public %}Yes{% else %}No{% endif %}
+      </td>
+    </tr>
+    <tr>
+      <th>Rating</th>
+      <td>
+        {% match post.rating.as_ref() %} {% when "u" %} Unrated {% when "s" %} Safe
+        {% when "q" %} Questionable {% when "e" %} Explicit {% else %} Unknown {%
+        endmatch %}
+      </td>
+    </tr>
+    <tr>
+      <th>Source(s)</th>
+      <td>
+        {% if sources.is_empty() %}
+        <em>None</em>{% else %}
+        <ul class="reset">
+          {% for source in sources %}
+          <li id="source-{{ source.id }}">
+            <a href="{{ source.url }}">{{ source.url }}</a>
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </td>
+    </tr>
+    <tr>
+      <th>Type</th>
+      <td>{{ post.media_type | capitalize }}</td>
+    </tr>
+    <tr>
+      <th>Width</th>
+      <td>{{ post.width }}px</td>
+    </tr>
+    <tr>
+      <th>Height</th>
+      <td>{{ post.height }}px</td>
+    </tr>
+    <tr>
+      <th>Upload date</th>
+      <td>{{ post.uploaded_at }}</td>
+    </tr>
+  </table>
   {% if can_edit %}
   <button hx-get="/post_details/{{ post.id }}/edit">Edit post</button>
   {% endif %}

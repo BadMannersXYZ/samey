@@ -2,16 +2,17 @@ use std::collections::HashSet;
 
 use migration::{Expr, Query};
 use sea_orm::{
-    ColumnTrait, Condition, EntityTrait, FromQueryResult, IntoSimpleExpr, QueryFilter, QueryOrder,
-    QuerySelect, RelationTrait, Select, SelectModel, Selector,
+    ColumnTrait, Condition, DatabaseConnection, EntityTrait, FromQueryResult, IntoSimpleExpr,
+    QueryFilter, QueryOrder, QuerySelect, RelationTrait, Select, SelectColumns, SelectModel,
+    Selector,
 };
 
 use crate::{
-    NEGATIVE_PREFIX, RATING_PREFIX,
+    NEGATIVE_PREFIX, RATING_PREFIX, SameyError,
     auth::User,
     entities::{
-        prelude::{SameyPoolPost, SameyPost, SameyTag, SameyTagPost},
-        samey_pool_post, samey_post, samey_tag, samey_tag_post,
+        prelude::{SameyPool, SameyPoolPost, SameyPost, SameyTag, SameyTagPost},
+        samey_pool, samey_pool_post, samey_post, samey_tag, samey_tag_post,
     },
 };
 
@@ -147,6 +148,64 @@ pub(crate) fn get_tags_for_post(post_id: i32) -> Select<SameyTag> {
         .inner_join(SameyTagPost)
         .filter(samey_tag_post::Column::PostId.eq(post_id))
         .order_by_asc(samey_tag::Column::Name)
+}
+
+#[derive(Debug)]
+pub(crate) struct PostPoolData {
+    pub(crate) id: i32,
+    pub(crate) name: String,
+    pub(crate) previous_post_id: Option<i32>,
+    pub(crate) next_post_id: Option<i32>,
+}
+
+#[derive(Debug, FromQueryResult)]
+struct PostInPool {
+    id: i32,
+    name: String,
+    position: f32,
+}
+
+pub(crate) async fn get_pool_data_for_post(
+    db: &DatabaseConnection,
+    post_id: i32,
+    user: Option<&User>,
+) -> Result<Vec<PostPoolData>, SameyError> {
+    let mut query = SameyPool::find()
+        .inner_join(SameyPoolPost)
+        .select_column(samey_pool_post::Column::Position)
+        .filter(samey_pool_post::Column::PostId.eq(post_id));
+    query = match user {
+        None => query.filter(samey_pool::Column::IsPublic.into_simple_expr()),
+        Some(user) if user.is_admin => query,
+        Some(user) => query.filter(
+            Condition::any()
+                .add(samey_pool::Column::IsPublic.into_simple_expr())
+                .add(samey_pool::Column::UploaderId.eq(user.id)),
+        ),
+    };
+    let pools = query.into_model::<PostInPool>().all(db).await?;
+
+    let mut post_pool_datas = Vec::with_capacity(pools.len());
+    for pool in pools.into_iter() {
+        let posts_in_pool = get_posts_in_pool(pool.id, user).all(db).await?;
+        if let Ok(index) = posts_in_pool.binary_search_by(|post| {
+            post.position
+                .partial_cmp(&pool.position)
+                .expect("position should never be NaN")
+        }) {
+            post_pool_datas.push(PostPoolData {
+                id: pool.id,
+                name: pool.name,
+                previous_post_id: index
+                    .checked_sub(1)
+                    .and_then(|idx| posts_in_pool.get(idx))
+                    .map(|post| post.id),
+                next_post_id: posts_in_pool.get(index + 1).map(|post| post.id),
+            });
+        }
+    }
+
+    Ok(post_pool_datas)
 }
 
 #[derive(Debug, FromQueryResult)]

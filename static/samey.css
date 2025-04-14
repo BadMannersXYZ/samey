@@ -2,6 +2,10 @@ img {
   max-width: none;
 }
 
+dialog::backdrop {
+  backdrop-filter: blur(32px);
+}
+
 div.center-item {
   display: flex;
   align-items: center;
