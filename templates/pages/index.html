@@ -14,6 +14,13 @@
         <h2>Search</h2>
         <form method="get" action="/posts/1">
           {% let tags_value = "" %} {% include "fragments/tags_input.html" %}
+          <div
+            hx-trigger="keyup[key=='Escape'] from:previous .tags"
+            hx-target="next .tags-autocomplete"
+            hx-swap="innerHTML"
+            hx-delete="/remove"
+            hidden
+          ></div>
           <ul class="reset tags-autocomplete" id="search-autocomplete"></ul>
           <button type="submit">Search</button>
         </form>

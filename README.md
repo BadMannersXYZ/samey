@@ -6,13 +6,18 @@ Sam's small image board.
 
 Still very much an early WIP.
 
+### Known issues
+
+- [ ] No way to close tag autocompletion on mobile
+
 ### Roadmap
 
+- [ ] Favicon from post
 - [ ] Logging
 - [ ] Improved error handling
+- [ ] Bulk edit tag
 - [ ] Caching
 - [ ] Lossless compression
-- [ ] Bulk edit tags/Fix tag capitalization
 - [ ] User management
 - [ ] Cleanup/fixup background tasks
 - [ ] Text media

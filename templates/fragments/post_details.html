@@ -1,7 +1,6 @@
-<article id="post-details" hx-target="this" hx-swap="outerHTML">
+<article id="post-details">
   <h2>
-    {% if let Some(title) = post.title %}{{ title }}{% else %}Details{%
-    endif %}
+    {% if let Some(title) = post.title %}{{ title }}{% else %}Details{% endif %}
   </h2>
   {% if let Some(description) = post.description %}
   <div id="description">{{ description | markdown }}</div>
@@ -9,16 +8,14 @@
   <table>
     <tr>
       <th>Is public post?</th>
-      <td>
-        {% if post.is_public %}Yes{% else %}No{% endif %}
-      </td>
+      <td>{% if post.is_public %}Yes{% else %}No{% endif %}</td>
     </tr>
     <tr>
       <th>Rating</th>
       <td>
-        {% match post.rating.as_ref() %} {% when "u" %} Unrated {% when "s" %} Safe
-        {% when "q" %} Questionable {% when "e" %} Explicit {% else %} Unknown {%
-        endmatch %}
+        {% match post.rating.as_ref() %} {% when "u" %} Unrated {% when "s" %}
+        Safe {% when "q" %} Questionable {% when "e" %} Explicit {% else %}
+        Unknown {% endmatch %}
       </td>
     </tr>
     <tr>
@@ -54,6 +51,12 @@
     </tr>
   </table>
   {% if can_edit %}
-  <button hx-get="/post_details/{{ post.id }}/edit">Edit post</button>
+  <button
+    hx-get="/post_details/{{ post.id }}/edit"
+    hx-target="#post-details"
+    hx-swap="outerHTML"
+  >
+    Edit post
+  </button>
   {% endif %}
-</div>
+</article>

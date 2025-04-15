@@ -13,6 +13,13 @@
       <h1>Upload media</h1>
       <form method="post" action="/upload" enctype="multipart/form-data">
         {% let tags_value = "" %} {% include "fragments/tags_input.html" %}
+        <div
+          hx-trigger="keyup[key=='Escape'] from:previous .tags"
+          hx-target="next .tags-autocomplete"
+          hx-swap="innerHTML"
+          hx-delete="/remove"
+          hidden
+        ></div>
         <ul class="reset tags-autocomplete" id="upload-autocomplete"></ul>
         <input
           type="file"

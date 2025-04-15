@@ -1,6 +1,8 @@
 services:
   samey:
     image: badmanners/samey:latest
+    build:
+      context: .
     container_name: samey
     restart: unless-stopped
     ports:
