@@ -92,7 +92,9 @@ pub async fn get_router(
     fs::create_dir_all(files_dir.as_ref()).await?;
 
     let session_store = SessionStorage::new(db.clone());
-    let session_layer = SessionManagerLayer::new(session_store);
+    let session_layer = SessionManagerLayer::new(session_store).with_expiry(
+        tower_sessions::Expiry::OnInactivity(time::Duration::weeks(1)),
+    );
     let auth_layer = AuthManagerLayerBuilder::new(Backend::new(db), session_layer).build();
 
     Ok(Router::new()
@@ -134,6 +136,7 @@ pub async fn get_router(
         .route_with_tsr("/posts/{page}", get(posts_page))
         // Other routes
         .route_with_tsr("/remove", delete(remove_field))
+        .route("/posts.xml", get(rss_page))
         .route("/", get(index))
         .with_state(state)
         .nest_service("/files", ServeDir::new(files_dir))

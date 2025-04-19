@@ -18,10 +18,17 @@ parent_post %}
 {% else %}
 <article id="parent-post" hx-swap-oob="outerHTML" hidden></article>
 {% endif %}
-<ul id="tags-list" hx-swap-oob="outerHTML">
-  {% for tag in tags %}
-  <li>
-    <a href="/posts?tags={{ tag.name }}">{{ tag.name }}</a>
-  </li>
-  {% endfor %}
-</ul>
+<article id="tags-list" hx-swap-oob="outerHTML">
+  <h2>Tags</h2>
+  {% if tags.is_empty() %}
+  <p>No tags in post. Consider adding some!</p>
+  {% else %}
+  <ul>
+    {% for tag in tags %}
+    <li>
+      <a href="/posts?tags={{ tag.name }}">{{ tag.name }}</a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</article>

@@ -13,9 +13,10 @@ Still very much an early WIP.
 ### Roadmap
 
 - [ ] Favicon from post
+- [ ] Bulk edit tag
+- [ ] RSS feed
 - [ ] Logging
 - [ ] Improved error handling
-- [ ] Bulk edit tag
 - [ ] Caching
 - [ ] Lossless compression
 - [ ] User management

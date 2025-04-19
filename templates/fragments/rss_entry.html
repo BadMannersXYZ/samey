@@ -1,0 +1,11 @@
+<h1>
+  {% if let Some(title) = post.title %}{{ title }}{% else %}Details{% endif %}
+</h1>
+{% match post.media_type.as_ref() %}{% when "image" %}
+<img src="{{ base_url }}/files/{{ post.media }}" />
+{% when "video" %}
+<video src="{{ base_url }}/files/{{ post.media }}" controls="true"></video>
+{% else %}{% endmatch %}{% if let Some(description) = post.description %}
+<h2>Description</h2>
+<div>{{ description | markdown }}</div>
+{% endif %}

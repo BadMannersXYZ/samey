@@ -92,12 +92,12 @@
       </ul>
     </article>
     {% endif %}
-    <article>
+    <article id="tags-list">
       <h2>Tags</h2>
       {% if tags.is_empty() %}
       <p>No tags in post. Consider adding some!</p>
       {% else %}
-      <ul id="tags-list">
+      <ul>
         {% for tag in tags %}
         <li>
           <a href="/posts?tags={{ tag.name }}">{{ tag.name }}</a>

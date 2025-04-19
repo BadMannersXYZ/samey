@@ -9,6 +9,7 @@
     {% if age_confirmation %}{% include "fragments/age_restricted_check.html"
     %}{% endif %}
     <div><a href="/">&lt; To home</a></div>
+    <div><a href="{% if let Some(tags_text) = tags_text %}/posts.xml?tags={{ tags_text.replace(' ', "+") }}{% else %}/posts.xml{% endif %}">RSS feed</a></div>
     <article>
       <h2>Search</h2>
       <form method="get" action="/posts">

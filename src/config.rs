@@ -6,11 +6,13 @@ use crate::{
 };
 
 pub(crate) const APPLICATION_NAME_KEY: &str = "APPLICATION_NAME";
+pub(crate) const BASE_URL_KEY: &str = "BASE_URL";
 pub(crate) const AGE_CONFIRMATION_KEY: &str = "AGE_CONFIRMATION";
 
 #[derive(Clone)]
 pub(crate) struct AppConfig {
     pub(crate) application_name: String,
+    pub(crate) base_url: String,
     pub(crate) age_confirmation: bool,
 }
 
@@ -24,6 +26,14 @@ impl AppConfig {
             Some(row) => row.data.as_str().unwrap_or("Samey").to_owned(),
             None => "Samey".to_owned(),
         };
+        let base_url = match SameyConfig::find()
+            .filter(samey_config::Column::Key.eq(BASE_URL_KEY))
+            .one(db)
+            .await?
+        {
+            Some(row) => row.data.as_str().unwrap_or("").to_owned(),
+            None => "".to_owned(),
+        };
         let age_confirmation = match SameyConfig::find()
             .filter(samey_config::Column::Key.eq(AGE_CONFIRMATION_KEY))
             .one(db)
@@ -34,6 +44,7 @@ impl AppConfig {
         };
         Ok(Self {
             application_name,
+            base_url,
             age_confirmation,
         })
     }

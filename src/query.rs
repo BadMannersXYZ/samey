@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use chrono::NaiveDateTime;
 use migration::{Expr, Query};
 use sea_orm::{
     ColumnTrait, Condition, DatabaseConnection, EntityTrait, FromQueryResult, IntoSimpleExpr,
@@ -20,6 +21,10 @@ use crate::{
 pub(crate) struct PostOverview {
     pub(crate) id: i32,
     pub(crate) thumbnail: String,
+    pub(crate) media: String,
+    pub(crate) title: Option<String>,
+    pub(crate) description: Option<String>,
+    pub(crate) uploaded_at: NaiveDateTime,
     pub(crate) tags: Option<String>,
     pub(crate) media_type: String,
     pub(crate) rating: String,
@@ -54,6 +59,10 @@ pub(crate) fn search_posts(
         let mut query = SameyPost::find()
             .select_only()
             .column(samey_post::Column::Id)
+            .column(samey_post::Column::Media)
+            .column(samey_post::Column::Title)
+            .column(samey_post::Column::Description)
+            .column(samey_post::Column::UploadedAt)
             .column(samey_post::Column::Thumbnail)
             .column(samey_post::Column::Rating)
             .column(samey_post::Column::MediaType)
@@ -77,6 +86,10 @@ pub(crate) fn search_posts(
         let mut query = SameyPost::find()
             .select_only()
             .column(samey_post::Column::Id)
+            .column(samey_post::Column::Media)
+            .column(samey_post::Column::Title)
+            .column(samey_post::Column::Description)
+            .column(samey_post::Column::UploadedAt)
             .column(samey_post::Column::Thumbnail)
             .column(samey_post::Column::Rating)
             .column(samey_post::Column::MediaType)

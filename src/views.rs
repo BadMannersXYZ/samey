@@ -29,7 +29,7 @@ use tokio::{task::spawn_blocking, try_join};
 use crate::{
     AppState, NEGATIVE_PREFIX, RATING_PREFIX,
     auth::{AuthSession, Credentials, User},
-    config::{AGE_CONFIRMATION_KEY, APPLICATION_NAME_KEY},
+    config::{AGE_CONFIRMATION_KEY, APPLICATION_NAME_KEY, BASE_URL_KEY},
     entities::{
         prelude::{
             SameyConfig, SameyPool, SameyPoolPost, SameyPost, SameyPostSource, SameyTag,
@@ -88,6 +88,63 @@ pub(crate) async fn index(
         }
         .render()?,
     ))
+}
+
+// RSS view
+
+#[derive(Template)]
+#[template(path = "fragments/rss_entry.html")]
+struct RssEntryTemplate<'a> {
+    post: PostOverview,
+    base_url: &'a str,
+}
+
+#[axum::debug_handler]
+pub(crate) async fn rss_page(
+    State(AppState { app_config, db, .. }): State<AppState>,
+    Query(query): Query<PostsQuery>,
+) -> Result<impl IntoResponse, SameyError> {
+    let app_config = app_config.read().await;
+    let application_name = app_config.application_name.clone();
+    let base_url = app_config.base_url.clone();
+    drop(app_config);
+
+    let tags = query
+        .tags
+        .as_ref()
+        .map(|tags| tags.split_whitespace().collect::<Vec<_>>());
+
+    let posts = search_posts(tags.as_ref(), None)
+        .paginate(&db, 20)
+        .fetch_page(0)
+        .await?;
+
+    let channel = rss::ChannelBuilder::default()
+        .title(&application_name)
+        .link(&base_url)
+        .items(
+            posts
+                .into_iter()
+                .map(|post| {
+                    rss::ItemBuilder::default()
+                        .title(post.tags.clone())
+                        .pub_date(post.uploaded_at.and_utc().to_rfc2822())
+                        .link(format!("{}/post/{}", &base_url, post.id))
+                        .content(
+                            RssEntryTemplate {
+                                post,
+                                base_url: &base_url,
+                            }
+                            .render()
+                            .ok(),
+                        )
+                        .build()
+                })
+                .collect_vec(),
+        )
+        .build();
+
+    Ok(channel.to_string())
 }
 
 // Auth views
@@ -1097,6 +1154,7 @@ pub(crate) async fn sort_pool(
 #[template(path = "pages/settings.html")]
 struct SettingsTemplate {
     application_name: String,
+    base_url: String,
     age_confirmation: bool,
 }
 
@@ -1110,6 +1168,7 @@ pub(crate) async fn settings(
 
     let app_config = app_config.read().await;
     let application_name = app_config.application_name.clone();
+    let base_url = app_config.base_url.clone();
     let age_confirmation = app_config.age_confirmation;
     drop(app_config);
 
@@ -1129,6 +1188,7 @@ pub(crate) async fn settings(
     Ok(Html(
         SettingsTemplate {
             application_name,
+            base_url,
             age_confirmation,
         }
         .render_with_values(&values)?,
@@ -1138,6 +1198,7 @@ pub(crate) async fn settings(
 #[derive(Debug, Deserialize)]
 pub(crate) struct UpdateSettingsForm {
     application_name: String,
+    base_url: String,
     age_confirmation: Option<bool>,
 }
 
@@ -1163,6 +1224,16 @@ pub(crate) async fn update_settings(
             ..Default::default()
         });
     }
+
+    let _ = mem::replace(
+        &mut app_config.write().await.base_url,
+        body.base_url.clone(),
+    );
+    configs.push(samey_config::ActiveModel {
+        key: Set(BASE_URL_KEY.into()),
+        data: Set(body.base_url.into()),
+        ..Default::default()
+    });
 
     let age_confirmation = body.age_confirmation.is_some();
     let _ = mem::replace(
@@ -1248,6 +1319,10 @@ pub(crate) async fn view_post_page(
             Some(parent_post) => Some(PostOverview {
                 id: parent_id,
                 thumbnail: parent_post.thumbnail,
+                title: parent_post.title,
+                description: parent_post.description,
+                uploaded_at: parent_post.uploaded_at,
+                media: parent_post.media,
                 tags: Some(
                     get_tags_for_post(post_id)
                         .all(&db)
@@ -1277,6 +1352,10 @@ pub(crate) async fn view_post_page(
         children_posts.push(PostOverview {
             id: child_post.id,
             thumbnail: child_post.thumbnail,
+            title: child_post.title,
+            description: child_post.description,
+            uploaded_at: child_post.uploaded_at,
+            media: child_post.media,
             tags: Some(
                 get_tags_for_post(child_post.id)
                     .all(&db)
@@ -1410,6 +1489,10 @@ pub(crate) async fn submit_post_details(
             Some(parent_post) => Some(PostOverview {
                 id: parent_id,
                 thumbnail: parent_post.thumbnail,
+                title: parent_post.title,
+                description: parent_post.description,
+                uploaded_at: parent_post.uploaded_at,
+                media: parent_post.media,
                 tags: Some(
                     get_tags_for_post(post_id)
                         .all(&db)
