@@ -26,7 +26,7 @@ parent_post %}
   <ul>
     {% for tag in tags %}
     <li>
-      <a href="/posts?tags={{ tag.name }}">{{ tag.name }}</a>
+      <a href="/posts?tags={{ tags_text.replace(' ', "+") }}+{{ tag.name }}">+</a> <a href="/posts?tags={{ tags_text.replace(' ', "+") }}+-{{ tag.name }}">-</a> <a href="/posts?tags={{ tag.name }}">{{ tag.name }}</a>
     </li>
     {% endfor %}
   </ul>

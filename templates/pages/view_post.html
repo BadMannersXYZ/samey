@@ -100,7 +100,11 @@
       <ul>
         {% for tag in tags %}
         <li>
-          <a href="/posts?tags={{ tag.name }}">{{ tag.name }}</a>
+          {% if let Some(tags_text) = tags_text %}
+          <a href="/posts?tags={{ tags_text.replace(' ', "+") }}+{{ tag.name }}">+</a> <a href="/posts?tags={{ tags_text.replace(' ', "+") }}+-{{ tag.name }}">-</a> <a href="/posts?tags={{ tag.name }}">{{ tag.name }}</a>
+          {% else %}
+          <a href="/posts?tags={{ tag.name }}">+</a> <a href="/posts?tags=-{{ tag.name }}">-</a> <a href="/posts?tags={{ tag.name }}">{{ tag.name }}</a>
+          {% endif %}
         </li>
         {% endfor %}
       </ul>

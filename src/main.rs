@@ -1,3 +1,8 @@
+use std::{
+    net::{IpAddr, Ipv6Addr},
+    path::PathBuf,
+};
+
 use clap::{Parser, Subcommand};
 use migration::{Migrator, MigratorTrait};
 use samey::{create_user, get_router};
@@ -5,50 +10,80 @@ use sea_orm::Database;
 
 #[derive(Parser)]
 struct Config {
+    #[arg(short, long, default_value = "sqlite:db.sqlite3?mode=rwc")]
+    database: String,
+
+    #[arg(short, long, default_value = "files")]
+    files_directory: PathBuf,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
 enum Commands {
-    Run,
+    Run {
+        #[arg(short, long, default_value_t = IpAddr::V6(Ipv6Addr::UNSPECIFIED))]
+        address: IpAddr,
+
+        #[arg(short, long, default_value_t = 3000)]
+        port: u16,
+    },
+
     Migrate,
+
     AddAdminUser {
         #[arg(short, long)]
         username: String,
+
         #[arg(short, long)]
         password: String,
     },
 }
 
+impl Default for Commands {
+    fn default() -> Self {
+        Commands::Run {
+            address: IpAddr::V6(Ipv6Addr::UNSPECIFIED),
+            port: 3000,
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
-    let db = Database::connect("sqlite:db.sqlite3?mode=rwc")
+    let config = Config::parse();
+    let db = Database::connect(config.database)
         .await
         .expect("Unable to connect to database");
-    let config = Config::parse();
-    match config.command {
-        Some(Commands::Migrate) => {
+    match config.command.unwrap_or_default() {
+        Commands::Migrate => {
             Migrator::up(&db, None)
                 .await
                 .expect("Unable to apply migrations");
         }
-        Some(Commands::AddAdminUser { username, password }) => {
+
+        Commands::AddAdminUser { username, password } => {
             create_user(db, username, password, true)
                 .await
                 .expect("Unable to add admin user");
         }
-        Some(Commands::Run) | None => {
+
+        Commands::Run { address, port } => {
             Migrator::up(&db, None)
                 .await
                 .expect("Unable to apply migrations");
-            let app = get_router(db, "files")
+            let app = get_router(db, config.files_directory)
                 .await
                 .expect("Unable to start router");
-            let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
+            let listener = tokio::net::TcpListener::bind((address, port))
                 .await
-                .expect("Unable to listen to port");
-            println!("Listening on http://localhost:3000");
+                .expect("Unable to bind TCP listener");
+            if address.is_ipv6() {
+                println!("Listening on http://[{}]:{}", address, port);
+            } else {
+                println!("Listening on http://{}:{}", address, port);
+            }
             axum::serve(listener, app).await.unwrap();
         }
     }

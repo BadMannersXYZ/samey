@@ -129,6 +129,8 @@ pub async fn get_router(
         .route_with_tsr("/pool/{pool_id}/post", post(add_post_to_pool))
         .route_with_tsr("/pool/{pool_id}/sort", put(sort_pool))
         .route_with_tsr("/pool_post/{pool_post_id}", delete(remove_pool_post))
+        // Bulk edit tag routes
+        .route_with_tsr("/bulk_edit_tag", get(bulk_edit_tag).post(edit_tag))
         // Settings routes
         .route_with_tsr("/settings", get(settings).post(update_settings))
         // Search routes

@@ -1148,6 +1148,139 @@ pub(crate) async fn sort_pool(
     ))
 }
 
+// Bulk edit tag views
+
+enum BulkEditTagMessage {
+    None,
+    Success,
+    Failure(String),
+}
+
+#[derive(Template)]
+#[template(path = "pages/bulk_edit_tag.html")]
+struct BulkEditTagTemplate {
+    application_name: String,
+    age_confirmation: bool,
+    message: BulkEditTagMessage,
+}
+
+pub(crate) async fn bulk_edit_tag(
+    State(AppState { app_config, .. }): State<AppState>,
+    auth_session: AuthSession,
+) -> Result<impl IntoResponse, SameyError> {
+    if auth_session.user.is_none_or(|user| !user.is_admin) {
+        return Err(SameyError::Forbidden);
+    }
+
+    let app_config = app_config.read().await;
+    let application_name = app_config.application_name.clone();
+    let age_confirmation = app_config.age_confirmation;
+    drop(app_config);
+
+    Ok(Html(
+        BulkEditTagTemplate {
+            application_name,
+            age_confirmation,
+            message: BulkEditTagMessage::None,
+        }
+        .render()?,
+    ))
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct EditTagForm {
+    tags: String,
+    new_tag: String,
+}
+
+pub(crate) async fn edit_tag(
+    State(AppState { db, app_config, .. }): State<AppState>,
+    auth_session: AuthSession,
+    Form(body): Form<EditTagForm>,
+) -> Result<impl IntoResponse, SameyError> {
+    if auth_session.user.is_none_or(|user| !user.is_admin) {
+        return Err(SameyError::Forbidden);
+    }
+
+    let app_config = app_config.read().await;
+    let application_name = app_config.application_name.clone();
+    let age_confirmation = app_config.age_confirmation;
+    drop(app_config);
+
+    let old_tag: Vec<_> = body.tags.split_whitespace().collect();
+    if old_tag.len() != 1 {
+        return Ok(Html(
+            BulkEditTagTemplate {
+                application_name,
+                age_confirmation,
+                message: BulkEditTagMessage::Failure("expected single tag to edit".into()),
+            }
+            .render()?,
+        ));
+    }
+    let old_tag = old_tag.first().unwrap();
+    let normalized_old_tag = old_tag.to_lowercase();
+
+    let new_tag: Vec<_> = body.new_tag.split_whitespace().collect();
+    if new_tag.len() != 1 {
+        return Ok(Html(
+            BulkEditTagTemplate {
+                application_name,
+                age_confirmation,
+                message: BulkEditTagMessage::Failure("expected single new tag".into()),
+            }
+            .render()?,
+        ));
+    }
+    let new_tag = new_tag.first().unwrap();
+    let normalized_new_tag = new_tag.to_lowercase();
+
+    let old_tag_db = SameyTag::find()
+        .filter(samey_tag::Column::NormalizedName.eq(&normalized_old_tag))
+        .one(&db)
+        .await?
+        .ok_or(SameyError::NotFound)?;
+
+    if let Some(new_tag_db) = SameyTag::find()
+        .filter(samey_tag::Column::NormalizedName.eq(&normalized_new_tag))
+        .one(&db)
+        .await?
+    {
+        let subquery = migration::Query::select()
+            .column((SameyTagPost, samey_tag_post::Column::PostId))
+            .from(SameyTagPost)
+            .and_where(samey_tag_post::Column::TagId.eq(new_tag_db.id))
+            .to_owned();
+        SameyTagPost::update_many()
+            .filter(samey_tag_post::Column::TagId.eq(old_tag_db.id))
+            .filter(samey_tag_post::Column::PostId.not_in_subquery(subquery))
+            .set(samey_tag_post::ActiveModel {
+                tag_id: Set(new_tag_db.id),
+                ..Default::default()
+            })
+            .exec(&db)
+            .await?;
+        SameyTag::delete_by_id(old_tag_db.id).exec(&db).await?;
+    } else {
+        SameyTag::update(samey_tag::ActiveModel {
+            id: Set(old_tag_db.id),
+            name: Set(new_tag.to_string()),
+            normalized_name: Set(normalized_new_tag),
+        })
+        .exec(&db)
+        .await?;
+    }
+
+    Ok(Html(
+        BulkEditTagTemplate {
+            application_name,
+            age_confirmation,
+            message: BulkEditTagMessage::Success,
+        }
+        .render()?,
+    ))
+}
+
 // Settings views
 
 #[derive(Template)]
@@ -1450,6 +1583,7 @@ struct SubmitPostDetailsTemplate {
     parent_post: Option<PostOverview>,
     sources: Vec<samey_post_source::Model>,
     tags: Vec<samey_tag::Model>,
+    tags_text: String,
     can_edit: bool,
 }
 
@@ -1580,6 +1714,13 @@ pub(crate) async fn submit_post_details(
         upload_tags.sort_by(|a, b| a.name.cmp(&b.name));
         upload_tags
     };
+    let mut tags_text = String::new();
+    for tag in &tags {
+        if !tags_text.is_empty() {
+            tags_text.push(' ');
+        }
+        tags_text.push_str(&tag.name);
+    }
 
     let sources = SameyPostSource::find()
         .filter(samey_post_source::Column::PostId.eq(post_id))
@@ -1591,6 +1732,7 @@ pub(crate) async fn submit_post_details(
             post,
             sources,
             tags,
+            tags_text,
             parent_post,
             can_edit: true,
         }
