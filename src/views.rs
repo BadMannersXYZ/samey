@@ -17,7 +17,7 @@ use axum_extra::extract::Form;
 use chrono::Utc;
 use image::{GenericImageView, ImageFormat, ImageReader};
 use itertools::Itertools;
-use migration::{Expr, OnConflict};
+use migration::{Expr, OnConflict, Query as MigrationQuery};
 use rand::Rng;
 use sea_orm::{
     ActiveValue::Set, ColumnTrait, Condition, EntityTrait, FromQueryResult, IntoSimpleExpr,
@@ -1246,7 +1246,7 @@ pub(crate) async fn edit_tag(
         .one(&db)
         .await?
     {
-        let subquery = migration::Query::select()
+        let subquery = MigrationQuery::select()
             .column((SameyTagPost, samey_tag_post::Column::PostId))
             .from(SameyTagPost)
             .and_where(samey_tag_post::Column::TagId.eq(new_tag_db.id))
@@ -1332,11 +1332,17 @@ pub(crate) async fn settings(
 pub(crate) struct UpdateSettingsForm {
     application_name: String,
     base_url: String,
+    favicon_post_id: String,
     age_confirmation: Option<bool>,
 }
 
 pub(crate) async fn update_settings(
-    State(AppState { db, app_config, .. }): State<AppState>,
+    State(AppState {
+        db,
+        app_config,
+        files_dir,
+        ..
+    }): State<AppState>,
     auth_session: AuthSession,
     Form(body): Form<UpdateSettingsForm>,
 ) -> Result<impl IntoResponse, SameyError> {
@@ -1388,6 +1394,21 @@ pub(crate) async fn update_settings(
             )
             .exec(&db)
             .await?;
+    }
+
+    if let Some(favicon_post_id) = body.favicon_post_id.split_whitespace().next() {
+        match favicon_post_id.parse::<i32>() {
+            Ok(favicon_post_id) => {
+                let post = SameyPost::find_by_id(favicon_post_id)
+                    .one(&db)
+                    .await?
+                    .ok_or(SameyError::NotFound)?;
+                ImageReader::open(files_dir.join(post.thumbnail))?
+                    .decode()?
+                    .save_with_format(files_dir.join("favicon.png"), ImageFormat::Png)?;
+            }
+            Err(err) => return Err(SameyError::IntParse(err)),
+        }
     }
 
     Ok(Redirect::to("/"))
@@ -1840,9 +1861,8 @@ pub(crate) async fn delete_post(
     SameyPost::delete_by_id(post.id).exec(&db).await?;
 
     tokio::spawn(async move {
-        let base_path = files_dir.as_ref();
-        let _ = std::fs::remove_file(base_path.join(post.media));
-        let _ = std::fs::remove_file(base_path.join(post.thumbnail));
+        let _ = std::fs::remove_file(files_dir.join(post.media));
+        let _ = std::fs::remove_file(files_dir.join(post.thumbnail));
     });
 
     Ok(Redirect::to("/"))

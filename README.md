@@ -19,7 +19,6 @@ Still very much an early WIP.
 
 ### Roadmap
 
-- [ ] Favicon from post
 - [ ] Delete pools
 - [ ] Logging and improved error handling
 - [ ] Lossless compression

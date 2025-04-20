@@ -12,6 +12,8 @@ struct NotFoundTemplate;
 pub enum SameyError {
     #[error("Integer conversion error: {0}")]
     IntConversion(#[from] std::num::TryFromIntError),
+    #[error("Integer parsing error: {0}")]
+    IntParse(#[from] std::num::ParseIntError),
     #[error("IO error: {0}")]
     IO(#[from] std::io::Error),
     #[error("Task error: {0}")]
@@ -41,6 +43,7 @@ impl IntoResponse for SameyError {
         println!("Server error - {}", &self);
         match &self {
             SameyError::IntConversion(_)
+            | SameyError::IntParse(_)
             | SameyError::IO(_)
             | SameyError::Join(_)
             | SameyError::Render(_)
