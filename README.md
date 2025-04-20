@@ -19,21 +19,21 @@ Still very much an early WIP.
 
 ### Roadmap
 
-- [ ] Delete pools
 - [ ] Logging and improved error handling
 - [ ] Lossless compression
 - [ ] Caching
 - [ ] Text media
 - [ ] Improve CSS
-- [ ] Garbage collection background tasks (tags, pools)
+- [ ] Background tasks for garbage collection (dangling tags)
 - [ ] User management
+- [ ] Testing
 - [ ] Migrate to Cot...?
 
 ## Running
 
-### Prerequisites
+### Dependencies
 
-- `ffmpeg` and `ffprobe`
+- `ffmpeg` (with `ffprobe`)
 
 ### Development
 

@@ -357,6 +357,7 @@ pub(crate) async fn upload(
                             .read(true)
                             .write(true)
                             .create(true)
+                            .truncate(true)
                             .open(&file_path)?;
                         while let Some(chunk) = field.chunk().await? {
                             file.write_all(&chunk)?;
@@ -407,6 +408,7 @@ pub(crate) async fn upload(
                             .read(true)
                             .write(true)
                             .create(true)
+                            .truncate(true)
                             .open(&file_path)?;
                         while let Some(chunk) = field.chunk().await? {
                             file.write_all(&chunk)?;
@@ -528,13 +530,13 @@ pub(crate) async fn search_tags(
     State(AppState { db, .. }): State<AppState>,
     Form(body): Form<SearchTagsForm>,
 ) -> Result<impl IntoResponse, SameyError> {
-    let tags = match body.tags[..body.selection_end].split(' ').last() {
+    let tags = match body.tags[..body.selection_end].split(' ').next_back() {
         Some(mut tag) => {
             tag = tag.trim();
             if tag.is_empty() {
                 vec![]
-            } else if tag.starts_with(NEGATIVE_PREFIX) {
-                if tag[NEGATIVE_PREFIX.len()..].starts_with(RATING_PREFIX) {
+            } else if let Some(stripped_tag) = tag.strip_prefix(NEGATIVE_PREFIX) {
+                if stripped_tag.starts_with(RATING_PREFIX) {
                     [
                         format!("{}u", RATING_PREFIX),
                         format!("{}s", RATING_PREFIX),
@@ -542,7 +544,7 @@ pub(crate) async fn search_tags(
                         format!("{}e", RATING_PREFIX),
                     ]
                     .into_iter()
-                    .filter(|t| t.starts_with(&tag[NEGATIVE_PREFIX.len()..]))
+                    .filter(|t| t.starts_with(stripped_tag))
                     .map(|tag| SearchTag {
                         value: format!("-{}", &tag),
                         name: tag,
@@ -552,7 +554,7 @@ pub(crate) async fn search_tags(
                     SameyTag::find()
                         .filter(Expr::cust_with_expr(
                             "LOWER(\"samey_tag\".\"name\") LIKE CONCAT(?, '%')",
-                            tag[NEGATIVE_PREFIX.len()..].to_lowercase(),
+                            stripped_tag.to_lowercase(),
                         ))
                         .limit(10)
                         .all(&db)
@@ -1115,12 +1117,10 @@ pub(crate) async fn sort_pool(
         };
         let max_index = if body.new_index == posts.len().saturating_sub(1) {
             None
+        } else if body.new_index < body.old_index {
+            Some(body.new_index)
         } else {
-            if body.new_index < body.old_index {
-                Some(body.new_index)
-            } else {
-                Some(body.new_index + 1)
-            }
+            Some(body.new_index + 1)
         };
         let min = min_index.map(|index| posts[index].position).unwrap_or(0.0);
         let max = max_index
@@ -1146,6 +1146,30 @@ pub(crate) async fn sort_pool(
         }
         .render()?,
     ))
+}
+
+pub(crate) async fn delete_pool(
+    State(AppState { db, .. }): State<AppState>,
+    auth_session: AuthSession,
+    Path(pool_id): Path<i32>,
+) -> Result<impl IntoResponse, SameyError> {
+    let pool = SameyPool::find_by_id(pool_id)
+        .one(&db)
+        .await?
+        .ok_or(SameyError::NotFound)?;
+
+    let can_edit = match auth_session.user.as_ref() {
+        None => false,
+        Some(user) => user.is_admin || pool.uploader_id == user.id,
+    };
+
+    if !can_edit {
+        return Err(SameyError::Forbidden);
+    }
+
+    SameyPool::delete_by_id(pool_id).exec(&db).await?;
+
+    Ok(Redirect::to("/"))
 }
 
 // Bulk edit tag views
@@ -1629,14 +1653,14 @@ pub(crate) async fn submit_post_details(
     }
 
     let title = match body.title.trim() {
-        title if title.is_empty() => None,
+        "" => None,
         title => Some(title.to_owned()),
     };
     let description = match body.description.trim() {
-        description if description.is_empty() => None,
+        "" => None,
         description => Some(description.to_owned()),
     };
-    let parent_post = if let Some(parent_id) = body.parent_post.trim().parse().ok() {
+    let parent_post = if let Ok(parent_id) = body.parent_post.trim().parse() {
         match filter_posts_by_user(SameyPost::find_by_id(parent_id), auth_session.user.as_ref())
             .one(&db)
             .await?

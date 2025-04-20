@@ -1,3 +1,5 @@
+//! Sam's small image board.
+
 pub(crate) mod auth;
 pub(crate) mod config;
 pub(crate) mod entities;
@@ -63,14 +65,26 @@ pub(crate) struct AppState {
     app_config: Arc<RwLock<AppConfig>>,
 }
 
+/// Helper function to create a single user.
+///
+/// You can specify if they must be an admin user via the `is_admin` flag.
+///
+/// ```
+/// use samey::create_user;
+///
+/// # async fn _main() {
+/// let db = sea_orm::Database::connect("sqlite:db.sqlite3?mode=rwc").await.unwrap();
+/// create_user(db, "admin", "secretPassword", true).await.expect("Unable to add admin user");
+/// # }
+/// ```
 pub async fn create_user(
     db: DatabaseConnection,
-    username: String,
-    password: String,
+    username: &str,
+    password: &str,
     is_admin: bool,
 ) -> Result<(), SameyError> {
     SameyUser::insert(samey_user::ActiveModel {
-        username: Set(username),
+        username: Set(username.into()),
         password: Set(generate_hash(password)),
         is_admin: Set(is_admin),
         ..Default::default()
@@ -80,6 +94,18 @@ pub async fn create_user(
     Ok(())
 }
 
+/// Creates an Axum router for a Samey application.
+///
+/// ```
+/// use samey::get_router;
+///
+/// # async fn _main() {
+/// let db = sea_orm::Database::connect("sqlite:db.sqlite3?mode=rwc").await.unwrap();
+/// let app = get_router(db, "files").await.unwrap();
+/// let listener = tokio::net::TcpListener::bind(("0.0.0.0", 3000)).await.unwrap();
+/// axum::serve(listener, app).await.unwrap();
+/// # }
+/// ```
 pub async fn get_router(
     db: DatabaseConnection,
     files_dir: impl AsRef<Path>,
@@ -123,7 +149,7 @@ pub async fn get_router(
         .route_with_tsr("/pools", get(get_pools))
         .route_with_tsr("/pools/{page}", get(get_pools_page))
         .route_with_tsr("/pool", post(create_pool))
-        .route_with_tsr("/pool/{pool_id}", get(view_pool))
+        .route_with_tsr("/pool/{pool_id}", get(view_pool).delete(delete_pool))
         .route_with_tsr("/pool/{pool_id}/name", put(change_pool_name))
         .route_with_tsr("/pool/{pool_id}/public", put(change_pool_visibility))
         .route_with_tsr("/pool/{pool_id}/post", post(add_post_to_pool))

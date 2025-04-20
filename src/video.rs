@@ -8,7 +8,7 @@ pub(crate) fn generate_thumbnail(
     max_thumbnail_dimension: u32,
 ) -> Result<(), SameyError> {
     let status = Command::new("ffmpeg")
-        .args(&[
+        .args([
             "-i",
             input_path,
             "-vf",
@@ -39,7 +39,7 @@ pub(crate) fn generate_thumbnail(
 
 pub(crate) fn get_dimensions_for_video(input_path: &str) -> Result<(u32, u32), SameyError> {
     let output = Command::new("ffprobe")
-        .args(&[
+        .args([
             "-v",
             "error",
             "-select_streams",

@@ -64,7 +64,7 @@ async fn main() {
         }
 
         Commands::AddAdminUser { username, password } => {
-            create_user(db, username, password, true)
+            create_user(db, &username, &password, true)
                 .await
                 .expect("Unable to add admin user");
         }
