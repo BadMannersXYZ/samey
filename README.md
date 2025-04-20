@@ -15,12 +15,13 @@ Still very much an early WIP.
 
 ### Known issues
 
-- No way to close tag autocompletion on mobile
+- No way to close tag autocompletion on mobile.
 
 ### Roadmap
 
 - [ ] Logging and improved error handling
 - [ ] Lossless compression
+- [ ] Post selection
 - [ ] Caching
 - [ ] Text media
 - [ ] Improve CSS

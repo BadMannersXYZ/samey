@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use chrono::NaiveDateTime;
-use migration::{Expr, Query};
+use samey_migration::{Expr, Query};
 use sea_orm::{
     ColumnTrait, Condition, DatabaseConnection, EntityTrait, FromQueryResult, IntoSimpleExpr,
     QueryFilter, QueryOrder, QuerySelect, RelationTrait, Select, SelectColumns, SelectModel,

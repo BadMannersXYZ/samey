@@ -1,8 +1,8 @@
 use std::fmt::Debug;
 
 use axum_login::{AuthUser, AuthnBackend, UserId};
-use migration::Expr;
 use password_auth::verify_password;
+use samey_migration::Expr;
 use sea_orm::{ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use serde::Deserialize;
 use time::OffsetDateTime;

@@ -17,8 +17,8 @@ use axum_extra::extract::Form;
 use chrono::Utc;
 use image::{GenericImageView, ImageFormat, ImageReader};
 use itertools::Itertools;
-use migration::{Expr, OnConflict, Query as MigrationQuery};
 use rand::Rng;
+use samey_migration::{Expr, OnConflict, Query as MigrationQuery};
 use sea_orm::{
     ActiveValue::Set, ColumnTrait, Condition, EntityTrait, FromQueryResult, IntoSimpleExpr,
     ModelTrait, PaginatorTrait, QueryFilter, QuerySelect,

@@ -4,8 +4,8 @@ use std::{
 };
 
 use clap::{Parser, Subcommand};
-use migration::{Migrator, MigratorTrait};
 use samey::{create_user, get_router};
+use samey_migration::{Migrator, MigratorTrait};
 use sea_orm::Database;
 
 #[derive(Parser)]

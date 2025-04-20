@@ -1,16 +1,19 @@
 [package]
-name = "migration"
+name = "samey-migration"
 version = "0.1.0"
-edition = "2021"
-publish = false
-
-[lib]
-name = "migration"
-path = "src/lib.rs"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+authors = ["Bad Manners <me@badmanners.xyz>"]
+readme = "README.md"
+keywords = ["booru", "image-board", "gallery"]
+categories = ["web-programming"]
+description = "Migrations for Samey, Sam's small image board"
+repository = "https://github.com/BadMannersXYZ/samey"
 
 [dependencies]
-async-std = { version = "1", features = ["attributes", "tokio1"] }
-
-[dependencies.sea-orm-migration]
-version = "1.1.8"
-features = ["sqlx-sqlite", "runtime-tokio-rustls"]
+async-std = { version = "1.13.1", features = ["attributes", "tokio1"] }
+sea-orm-migration = { version = "1.1.8", features = [
+  "sqlx-sqlite",
+  "runtime-tokio-rustls",
+] }
