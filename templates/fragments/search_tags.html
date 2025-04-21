@@ -1,4 +1,10 @@
-{% for tag in tags %}
+{% if !tags.is_empty() %}
+<li>
+  <button hx-delete="/remove" hx-target="closest ul" hx-swap="innerHTML">
+    (close)
+  </button>
+</li>
+{% endif %}{% for tag in tags %}
 <li>
   <button
     hx-post="/select_tag"

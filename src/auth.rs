@@ -221,3 +221,9 @@ impl ExpiredDeletion for SessionStorage {
         Ok(())
     }
 }
+
+impl From<axum_login::Error<Backend>> for SameyError {
+    fn from(value: axum_login::Error<Backend>) -> Self {
+        value.into()
+    }
+}

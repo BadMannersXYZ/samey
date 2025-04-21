@@ -40,8 +40,8 @@ use crate::{
     },
     error::SameyError,
     query::{
-        PoolPost, PostOverview, PostPoolData, filter_posts_by_user, get_pool_data_for_post,
-        get_posts_in_pool, get_tags_for_post, search_posts,
+        PoolPost, PostOverview, PostPoolData, clean_dangling_tags, filter_posts_by_user,
+        get_pool_data_for_post, get_posts_in_pool, get_tags_for_post, search_posts,
     },
     video::{generate_thumbnail, get_dimensions_for_video},
 };
@@ -183,24 +183,17 @@ pub(crate) async fn login(
     mut auth_session: AuthSession,
     Form(credentials): Form<Credentials>,
 ) -> Result<impl IntoResponse, SameyError> {
-    let user = match auth_session.authenticate(credentials).await {
-        Ok(Some(user)) => user,
-        Ok(None) => return Err(SameyError::Authentication("Invalid credentials".into())),
-        Err(_) => return Err(SameyError::Other("Auth session error".into())),
+    let user = match auth_session.authenticate(credentials).await? {
+        Some(user) => user,
+        None => return Err(SameyError::Authentication("Invalid credentials".into())),
     };
 
-    auth_session
-        .login(&user)
-        .await
-        .map_err(|_| SameyError::Other("Login failed".into()))?;
+    auth_session.login(&user).await?;
     Ok(Redirect::to("/"))
 }
 
 pub(crate) async fn logout(mut auth_session: AuthSession) -> Result<impl IntoResponse, SameyError> {
-    auth_session
-        .logout()
-        .await
-        .map_err(|_| SameyError::Other("Logout error".into()))?;
+    auth_session.logout().await?;
     Ok(Redirect::to("/"))
 }
 
@@ -260,10 +253,9 @@ impl FromStr for Format {
             "application/x-matroska" | "video/mastroska" => Ok(Self::Video(".mkv")),
             "video/quicktime" => Ok(Self::Video(".mov")),
             _ => Ok(Self::Image(
-                ImageFormat::from_mime_type(content_type).ok_or(SameyError::Other(format!(
-                    "Unknown content type: {}",
-                    content_type
-                )))?,
+                ImageFormat::from_mime_type(content_type).ok_or(SameyError::BadRequest(
+                    format!("Unknown content type: {}", content_type),
+                ))?,
             )),
         }
     }
@@ -334,7 +326,7 @@ pub(crate) async fn upload(
             "media-file" => {
                 let content_type = field
                     .content_type()
-                    .ok_or(SameyError::Other("Missing content type".into()))?;
+                    .ok_or(SameyError::BadRequest("Missing content type".into()))?;
                 match Format::from_str(content_type)? {
                     format @ Format::Video(video_format) => {
                         media_type = Some(format.media_type());
@@ -502,7 +494,9 @@ pub(crate) async fn upload(
 
         Ok(Redirect::to(&format!("/post/{}", uploaded_post)))
     } else {
-        Err(SameyError::Other("Missing parameters for upload".into()))
+        Err(SameyError::BadRequest(
+            "Missing parameters for upload".into(),
+        ))
     }
 }
 
@@ -1376,25 +1370,24 @@ pub(crate) async fn update_settings(
 
     let mut configs = vec![];
 
-    if !body.application_name.is_empty() {
+    let application_name = body.application_name.trim();
+    if !application_name.is_empty() {
         let _ = mem::replace(
             &mut app_config.write().await.application_name,
-            body.application_name.clone(),
+            application_name.into(),
         );
         configs.push(samey_config::ActiveModel {
             key: Set(APPLICATION_NAME_KEY.into()),
-            data: Set(body.application_name.into()),
+            data: Set(application_name.into()),
             ..Default::default()
         });
     }
 
-    let _ = mem::replace(
-        &mut app_config.write().await.base_url,
-        body.base_url.clone(),
-    );
+    let base_url = body.base_url.trim_end_matches('/');
+    let _ = mem::replace(&mut app_config.write().await.base_url, base_url.into());
     configs.push(samey_config::ActiveModel {
         key: Set(BASE_URL_KEY.into()),
-        data: Set(body.base_url.into()),
+        data: Set(base_url.into()),
         ..Default::default()
     });
 
@@ -1772,6 +1765,12 @@ pub(crate) async fn submit_post_details(
         .all(&db)
         .await?;
 
+    tokio::spawn(async move {
+        if let Err(err) = clean_dangling_tags(&db).await {
+            println!("Error when cleaning dangling tags - {}", err);
+        }
+    });
+
     Ok(Html(
         SubmitPostDetailsTemplate {
             post,
@@ -1887,6 +1886,9 @@ pub(crate) async fn delete_post(
     tokio::spawn(async move {
         let _ = std::fs::remove_file(files_dir.join(post.media));
         let _ = std::fs::remove_file(files_dir.join(post.thumbnail));
+        if let Err(err) = clean_dangling_tags(&db).await {
+            println!("Error when cleaning dangling tags - {}", err);
+        }
     });
 
     Ok(Redirect::to("/"))

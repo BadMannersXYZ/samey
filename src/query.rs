@@ -3,9 +3,9 @@ use std::collections::HashSet;
 use chrono::NaiveDateTime;
 use samey_migration::{Expr, Query};
 use sea_orm::{
-    ColumnTrait, Condition, DatabaseConnection, EntityTrait, FromQueryResult, IntoSimpleExpr,
-    QueryFilter, QueryOrder, QuerySelect, RelationTrait, Select, SelectColumns, SelectModel,
-    Selector,
+    ColumnTrait, Condition, DatabaseConnection, EntityTrait, FromQueryResult, IntoIdentity,
+    IntoSimpleExpr, QueryFilter, QueryOrder, QuerySelect, RelationTrait, Select, SelectColumns,
+    SelectModel, Selector,
 };
 
 use crate::{
@@ -275,4 +275,19 @@ pub(crate) fn filter_posts_by_user(
                 .add(samey_post::Column::UploaderId.eq(user.id)),
         ),
     }
+}
+
+pub(crate) async fn clean_dangling_tags(db: &DatabaseConnection) -> Result<(), SameyError> {
+    let dangling_tags = SameyTag::find()
+        .select_column_as(samey_tag_post::Column::Id.count(), "count")
+        .left_join(SameyTagPost)
+        .group_by(samey_tag::Column::Id)
+        .having(Expr::column("count".into_identity()).eq(0))
+        .all(db)
+        .await?;
+    SameyTag::delete_many()
+        .filter(samey_tag::Column::Id.is_in(dangling_tags.into_iter().map(|tag| tag.id)))
+        .exec(db)
+        .await?;
+    Ok(())
 }

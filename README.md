@@ -13,21 +13,15 @@ Still very much an early WIP.
 - Post pools.
 - RSS feeds.
 
-### Known issues
+### Possible roadmap
 
-- No way to close tag autocompletion on mobile.
-
-### Roadmap
-
-- [ ] Logging and improved error handling
-- [ ] Lossless compression
-- [ ] Post selection
 - [ ] Caching
 - [ ] Text media
 - [ ] Improve CSS
-- [ ] Background tasks for garbage collection (dangling tags)
 - [ ] User management
+- [ ] Display thumbnails on post selection
 - [ ] Testing
+- [ ] Lossless compression
 - [ ] Migrate to Cot...?
 
 ## Running

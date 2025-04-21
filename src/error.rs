@@ -5,8 +5,26 @@ use axum::{
 };
 
 #[derive(askama::Template)]
+#[template(path = "pages/bad_request.html")]
+struct BadRequestTemplate<'a> {
+    error: &'a str,
+}
+
+#[derive(askama::Template)]
+#[template(path = "pages/unauthorized.html")]
+struct UnauthorizedTemplate;
+
+#[derive(askama::Template)]
+#[template(path = "pages/forbidden.html")]
+struct ForbiddenTemplate;
+
+#[derive(askama::Template)]
 #[template(path = "pages/not_found.html")]
 struct NotFoundTemplate;
+
+#[derive(askama::Template)]
+#[template(path = "pages/internal_server_error.html")]
+struct InternalServerErrorTemplate;
 
 /// Errors from Samey.
 #[derive(Debug, thiserror::Error)]
@@ -54,7 +72,6 @@ pub enum SameyError {
 
 impl IntoResponse for SameyError {
     fn into_response(self) -> Response {
-        println!("Server error - {}", &self);
         match &self {
             SameyError::IntConversion(_)
             | SameyError::IntParse(_)
@@ -64,11 +81,37 @@ impl IntoResponse for SameyError {
             | SameyError::Database(_)
             | SameyError::Image(_)
             | SameyError::Other(_) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong!").into_response()
+                println!("Internal server error - {:?}", &self);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Html(
+                        InternalServerErrorTemplate {}
+                            .render()
+                            .expect("shouldn't fail to render InternalServerErrorTemplate"),
+                    ),
+                )
+                    .into_response()
             }
-            SameyError::Multipart(_) | SameyError::BadRequest(_) => {
-                (StatusCode::BAD_REQUEST, "Invalid request").into_response()
-            }
+            SameyError::Multipart(error) => (
+                StatusCode::BAD_REQUEST,
+                Html(
+                    BadRequestTemplate {
+                        error: &error.body_text(),
+                    }
+                    .render()
+                    .expect("shouldn't fail to render BadRequestTemplate"),
+                ),
+            )
+                .into_response(),
+            SameyError::BadRequest(error) => (
+                StatusCode::BAD_REQUEST,
+                Html(
+                    BadRequestTemplate { error }
+                        .render()
+                        .expect("shouldn't fail to render BadRequestTemplate"),
+                ),
+            )
+                .into_response(),
             SameyError::NotFound => (
                 StatusCode::NOT_FOUND,
                 Html(
@@ -78,10 +121,24 @@ impl IntoResponse for SameyError {
                 ),
             )
                 .into_response(),
-            SameyError::Authentication(_) => {
-                (StatusCode::UNAUTHORIZED, "Not authorized").into_response()
-            }
-            SameyError::Forbidden => (StatusCode::FORBIDDEN, "Forbidden").into_response(),
+            SameyError::Authentication(_) => (
+                StatusCode::UNAUTHORIZED,
+                Html(
+                    UnauthorizedTemplate {}
+                        .render()
+                        .expect("shouldn't fail to render UnauthorizedTemplate"),
+                ),
+            )
+                .into_response(),
+            SameyError::Forbidden => (
+                StatusCode::FORBIDDEN,
+                Html(
+                    ForbiddenTemplate {}
+                        .render()
+                        .expect("shouldn't fail to render ForbiddenTemplate"),
+                ),
+            )
+                .into_response(),
         }
     }
 }
