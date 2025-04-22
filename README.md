@@ -17,9 +17,9 @@ Still very much an early WIP.
 
 - [ ] Display thumbnails on post selection
 - [ ] Text media
+- [ ] Testing
 - [ ] Improve CSS
 - [ ] User management
-- [ ] Testing
 - [ ] Lossless compression
 - [ ] Migrate to Cot...?
 

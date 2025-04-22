@@ -18,7 +18,7 @@ use chrono::Utc;
 use image::{GenericImageView, ImageFormat, ImageReader};
 use itertools::Itertools;
 use rand::Rng;
-use samey_migration::{Expr, OnConflict, Query as MigrationQuery};
+use samey_migration::{OnConflict, Query as MigrationQuery};
 use sea_orm::{
     ActiveValue::Set, ColumnTrait, Condition, EntityTrait, FromQueryResult, IntoSimpleExpr,
     ModelTrait, PaginatorTrait, QueryFilter, QuerySelect,
@@ -552,10 +552,17 @@ pub(crate) async fn search_tags(
                         .collect()
                 } else {
                     SameyTag::find()
-                        .filter(Expr::cust_with_expr(
-                            "LOWER(\"samey_tag\".\"name\") LIKE CONCAT(?, '%')",
-                            stripped_tag.to_lowercase(),
-                        ))
+                        .filter(
+                            Condition::any()
+                                .add(
+                                    samey_tag::Column::NormalizedName
+                                        .starts_with(stripped_tag.to_lowercase()),
+                                )
+                                .add(
+                                    samey_tag::Column::NormalizedName
+                                        .contains(format!(":{}", stripped_tag.to_lowercase())),
+                                ),
+                        )
                         .limit(10)
                         .all(&db)
                         .await?
@@ -586,10 +593,14 @@ pub(crate) async fn search_tags(
                     .collect()
             } else {
                 SameyTag::find()
-                    .filter(Expr::cust_with_expr(
-                        "LOWER(\"samey_tag\".\"name\") LIKE CONCAT(?, '%')",
-                        tag.to_lowercase(),
-                    ))
+                    .filter(
+                        Condition::any()
+                            .add(samey_tag::Column::NormalizedName.starts_with(tag.to_lowercase()))
+                            .add(
+                                samey_tag::Column::NormalizedName
+                                    .contains(format!(":{}", tag.to_lowercase())),
+                            ),
+                    )
                     .limit(10)
                     .all(&db)
                     .await?
