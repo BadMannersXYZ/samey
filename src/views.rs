@@ -24,10 +24,11 @@ use sea_orm::{
     ModelTrait, PaginatorTrait, QueryFilter, QuerySelect,
 };
 use serde::Deserialize;
+use strum::IntoEnumIterator;
 use tokio::{task::spawn_blocking, try_join};
 
 use crate::{
-    AppState, NEGATIVE_PREFIX, RATING_PREFIX,
+    AppState,
     auth::{AuthSession, Credentials, User},
     config::{AGE_CONFIRMATION_KEY, APPLICATION_NAME_KEY, BASE_URL_KEY},
     entities::{
@@ -43,6 +44,7 @@ use crate::{
         PoolPost, PostOverview, PostPoolData, clean_dangling_tags, filter_posts_by_user,
         get_pool_data_for_post, get_posts_in_pool, get_tags_for_post, search_posts,
     },
+    tags::{MEDIA_TYPE_PREFIX, MediaType, NEGATIVE_PREFIX, RATING_PREFIX, Rating},
     video::{generate_thumbnail, get_dimensions_for_video},
 };
 
@@ -531,19 +533,23 @@ pub(crate) async fn search_tags(
                 vec![]
             } else if let Some(stripped_tag) = tag.strip_prefix(NEGATIVE_PREFIX) {
                 if stripped_tag.starts_with(RATING_PREFIX) {
-                    [
-                        format!("{}u", RATING_PREFIX),
-                        format!("{}s", RATING_PREFIX),
-                        format!("{}q", RATING_PREFIX),
-                        format!("{}e", RATING_PREFIX),
-                    ]
-                    .into_iter()
-                    .filter(|t| t.starts_with(stripped_tag))
-                    .map(|tag| SearchTag {
-                        value: format!("-{}", &tag),
-                        name: tag,
-                    })
-                    .collect()
+                    Rating::iter()
+                        .map(|rating| format!("{}{}", RATING_PREFIX, rating))
+                        .filter(|t| t.starts_with(stripped_tag))
+                        .map(|tag| SearchTag {
+                            value: format!("-{}", &tag),
+                            name: tag,
+                        })
+                        .collect()
+                } else if stripped_tag.starts_with(MEDIA_TYPE_PREFIX) {
+                    MediaType::iter()
+                        .map(|rating| format!("{}{}", MEDIA_TYPE_PREFIX, rating))
+                        .filter(|t| t.starts_with(stripped_tag))
+                        .map(|tag| SearchTag {
+                            value: format!("-{}", &tag),
+                            name: tag,
+                        })
+                        .collect()
                 } else {
                     SameyTag::find()
                         .filter(Expr::cust_with_expr(
@@ -561,19 +567,23 @@ pub(crate) async fn search_tags(
                         .collect()
                 }
             } else if tag.starts_with(RATING_PREFIX) {
-                [
-                    format!("{}u", RATING_PREFIX),
-                    format!("{}s", RATING_PREFIX),
-                    format!("{}q", RATING_PREFIX),
-                    format!("{}e", RATING_PREFIX),
-                ]
-                .into_iter()
-                .filter(|t| t.starts_with(tag))
-                .map(|tag| SearchTag {
-                    value: tag.clone(),
-                    name: tag,
-                })
-                .collect()
+                Rating::iter()
+                    .map(|rating| format!("{}{}", RATING_PREFIX, rating))
+                    .filter(|t| t.starts_with(tag))
+                    .map(|tag| SearchTag {
+                        value: tag.clone(),
+                        name: tag,
+                    })
+                    .collect()
+            } else if tag.starts_with(MEDIA_TYPE_PREFIX) {
+                MediaType::iter()
+                    .map(|rating| format!("{}{}", MEDIA_TYPE_PREFIX, rating))
+                    .filter(|t| t.starts_with(tag))
+                    .map(|tag| SearchTag {
+                        value: tag.clone(),
+                        name: tag,
+                    })
+                    .collect()
             } else {
                 SameyTag::find()
                     .filter(Expr::cust_with_expr(

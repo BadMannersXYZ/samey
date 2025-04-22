@@ -15,11 +15,10 @@ Still very much an early WIP.
 
 ### Possible roadmap
 
-- [ ] Caching
+- [ ] Display thumbnails on post selection
 - [ ] Text media
 - [ ] Improve CSS
 - [ ] User management
-- [ ] Display thumbnails on post selection
 - [ ] Testing
 - [ ] Lossless compression
 - [ ] Migrate to Cot...?

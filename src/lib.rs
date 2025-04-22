@@ -5,7 +5,7 @@ pub(crate) mod config;
 pub(crate) mod entities;
 pub(crate) mod error;
 pub(crate) mod query;
-pub(crate) mod rating;
+pub(crate) mod tags;
 pub(crate) mod video;
 pub(crate) mod views;
 
@@ -34,9 +34,6 @@ use crate::config::AppConfig;
 use crate::entities::{prelude::SameyUser, samey_user};
 pub use crate::error::SameyError;
 use crate::views::*;
-
-pub(crate) const NEGATIVE_PREFIX: &str = "-";
-pub(crate) const RATING_PREFIX: &str = "rating:";
 
 #[derive(rust_embed::Embed)]
 #[folder = "static/"]

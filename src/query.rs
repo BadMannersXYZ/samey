@@ -9,12 +9,13 @@ use sea_orm::{
 };
 
 use crate::{
-    NEGATIVE_PREFIX, RATING_PREFIX, SameyError,
+    SameyError,
     auth::User,
     entities::{
         prelude::{SameyPool, SameyPoolPost, SameyPost, SameyTag, SameyTagPost},
         samey_pool, samey_pool_post, samey_post, samey_tag, samey_tag_post,
     },
+    tags::{MEDIA_TYPE_PREFIX, NEGATIVE_PREFIX, RATING_PREFIX},
 };
 
 #[derive(Debug, FromQueryResult)]
@@ -38,17 +39,23 @@ pub(crate) fn search_posts(
     let mut exclude_tags = HashSet::<String>::new();
     let mut include_ratings = HashSet::<String>::new();
     let mut exclude_ratings = HashSet::<String>::new();
+    let mut include_types = HashSet::<String>::new();
+    let mut exclude_types = HashSet::<String>::new();
     if let Some(tags) = tags {
-        for mut tag in tags.iter().map(|tag| tag.to_lowercase()) {
-            if tag.starts_with(NEGATIVE_PREFIX) {
-                if tag.as_str()[NEGATIVE_PREFIX.len()..].starts_with(RATING_PREFIX) {
-                    exclude_ratings
-                        .insert(tag.split_off(NEGATIVE_PREFIX.len() + RATING_PREFIX.len()));
+        for tag in tags.iter().map(|tag| tag.to_lowercase()) {
+            if let Some(negative_tag) = tag.strip_prefix(NEGATIVE_PREFIX) {
+                if let Some(negative_rating_tag) = negative_tag.strip_prefix(RATING_PREFIX) {
+                    exclude_ratings.insert(negative_rating_tag.into());
+                } else if let Some(negative_type_tag) = negative_tag.strip_prefix(MEDIA_TYPE_PREFIX)
+                {
+                    exclude_types.insert(negative_type_tag.into());
                 } else {
-                    exclude_tags.insert(tag.split_off(NEGATIVE_PREFIX.len()));
+                    exclude_tags.insert(negative_tag.into());
                 }
-            } else if tag.starts_with(RATING_PREFIX) {
-                include_ratings.insert(tag.split_off(RATING_PREFIX.len()));
+            } else if let Some(rating_tag) = tag.strip_prefix(RATING_PREFIX) {
+                include_ratings.insert(rating_tag.into());
+            } else if let Some(type_tag) = tag.strip_prefix(MEDIA_TYPE_PREFIX) {
+                include_types.insert(type_tag.into());
             } else {
                 include_tags.insert(tag);
             }
@@ -80,6 +87,12 @@ pub(crate) fn search_posts(
         }
         if !exclude_ratings.is_empty() {
             query = query.filter(samey_post::Column::Rating.is_not_in(exclude_ratings))
+        }
+        if !include_types.is_empty() {
+            query = query.filter(samey_post::Column::MediaType.is_in(include_types))
+        }
+        if !exclude_types.is_empty() {
+            query = query.filter(samey_post::Column::MediaType.is_not_in(exclude_types))
         }
         query
     } else {
@@ -146,6 +159,12 @@ pub(crate) fn search_posts(
         }
         if !exclude_ratings.is_empty() {
             query = query.filter(samey_post::Column::Rating.is_not_in(exclude_ratings))
+        }
+        if !include_types.is_empty() {
+            query = query.filter(samey_post::Column::MediaType.is_in(include_types))
+        }
+        if !exclude_types.is_empty() {
+            query = query.filter(samey_post::Column::MediaType.is_not_in(exclude_types))
         }
         query
     };
