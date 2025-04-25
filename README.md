@@ -2,6 +2,8 @@
 
 Sam's small image board.
 
+[Check out a sample instance here!](https://samey.badmanners.xyz/)
+
 ## Status
 
 Still very much an early WIP.

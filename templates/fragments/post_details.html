@@ -6,10 +6,12 @@
   <div id="description">{{ description | markdown }}</div>
   {% endif %}
   <table>
+    {% if can_edit %}
     <tr>
       <th>Is public post?</th>
       <td>{% if post.is_public %}Yes{% else %}No{% endif %}</td>
     </tr>
+    {% endif %}
     <tr>
       <th>Rating</th>
       <td>
