@@ -15,16 +15,6 @@ Still very much an early WIP.
 - Post pools.
 - RSS feeds.
 
-### Possible roadmap
-
-- [ ] Display thumbnails on post selection
-- [ ] Text media
-- [ ] Testing
-- [ ] Improve CSS
-- [ ] User management
-- [ ] Lossless compression
-- [ ] Migrate to Cot...?
-
 ## Running
 
 ### Dependencies

@@ -11,6 +11,7 @@ let
   crate-info = fromTOML (builtins.readFile ./Cargo.toml);
   pname = crate-info.package.name;
   version = crate-info.package.version;
+  description = crate-info.package.description;
 
   docker-image = "badmanners/${pname}";
   cargo-deps-hash = "sha256-PD/ZR/sdmqA18xcOi9AnwQtDYVyELPS6GBF/pzcJzkE=";
@@ -62,7 +63,7 @@ let
 
   mkRustPkg =
     targetTriple:
-    stdenv.mkDerivation {
+    (stdenv.mkDerivation {
       inherit
         pname
         version
@@ -89,6 +90,12 @@ let
         mkdir -p $out/bin
         cp ./target/${targetTriple}/release/${pname} $out/bin/
       '';
+    })
+    // {
+      meta = {
+        inherit description;
+        mainProgram = pname;
+      };
     };
 
   mkDocker =
@@ -107,16 +114,13 @@ let
             crossSystem = system;
           });
       rust-package = mkRustPkg targetTriple;
+      ffmpeg = pkgs.ffmpeg_8-headless;
     in
     pkgs-cross.dockerTools.buildLayeredImage {
       name = docker-image;
       inherit tag;
-      contents = [
-        pkgs.ffmpeg-headless
-      ];
-      config.Entrypoint = [
-        "${rust-package}/bin/${pname}"
-      ];
+      contents = [ ffmpeg ];
+      config.Entrypoint = [ (lib.getExe rust-package) ];
     };
 
   currentTargetTriple =

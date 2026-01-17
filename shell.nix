@@ -10,6 +10,7 @@ in
 pkgs.mkShell {
   packages = [
     pkgs.bacon
+    pkgs.ffmpeg_8-headless
     pkgs.just
     pkgs.rust-bin.stable.latest.default
     pkgs.sea-orm-cli
