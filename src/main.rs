@@ -84,7 +84,31 @@ async fn main() {
             } else {
                 println!("Listening on http://{}:{}", address, port);
             }
-            axum::serve(listener, app).await.unwrap();
+            #[cfg(unix)]
+            {
+                let mut signal_terminate =
+                    tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                        .unwrap();
+                let mut signal_interrupt =
+                    tokio::signal::unix::signal(tokio::signal::unix::SignalKind::interrupt())
+                        .unwrap();
+
+                tokio::select! {
+                    server = axum::serve(listener, app) => {
+                        server.unwrap();
+                    },
+                    _ = signal_terminate.recv() => {
+                        println!("Received SIGTERM");
+                    },
+                    _ = signal_interrupt.recv() => {
+                        println!("Received SIGINT");
+                    },
+                };
+            }
+            #[cfg(not(unix))]
+            {
+                axum::serve(listener, app).await.unwrap();
+            }
         }
     }
 }

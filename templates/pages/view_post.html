@@ -6,7 +6,7 @@
     {% include "fragments/common_headers.html" %}
     {% if let Some(title) = post.title %}<meta property="og:title" content="{{ title }}"/>{% else %}<meta property="og:title" content="{{ tags_post }}" />{% endif %}
     <meta property="og:url" content="/post/{{ post.id }}" />
-    {% if let Some(description) = post.description %}<meta property="og:description" content="{{ description | markdown | escape }}" />{% endif %}
+    {% if let Some(description) = description_plaintext %}<meta property="og:description" content="{{ description }}" />{% endif %}
     {% match post.media_type.as_ref() %} {% when "image" %}
     <meta property="og:image" content="/files/{{ post.media }}" />
     <meta property="og:image:width" content="{{ post.width }}" />

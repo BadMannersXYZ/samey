@@ -3,16 +3,24 @@ let
     nixpkgs
     rust-overlay
     ;
-  pkgs = import nixpkgs {
+  currentPkgs = import nixpkgs {
     overlays = [ (import rust-overlay) ];
   };
-  inherit (pkgs) lib stdenv;
+  inherit (currentPkgs) lib stdenv;
 
-  # Options for your package
-  pname = "samey";
-  version = "0.1.0";
-  docker-image = "badmanners/samey";
-  cargo-deps-hash = "sha256-oiz2a6Vip199saU/s/sBn/3Cl0eJaSltN3n1uPETHGk=";
+  crate-info = fromTOML (builtins.readFile ./Cargo.toml);
+  pname = crate-info.package.name;
+  version = crate-info.package.version;
+
+  docker-image = "badmanners/${pname}";
+  cargo-deps-hash = "sha256-PD/ZR/sdmqA18xcOi9AnwQtDYVyELPS6GBF/pzcJzkE=";
+  cargo-src = lib.fileset.toSource {
+    root = ./.;
+    fileset = lib.fileset.unions [
+      ./Cargo.toml
+      ./Cargo.lock
+    ];
+  };
   src = lib.fileset.toSource {
     root = ./.;
     fileset = lib.fileset.unions [
@@ -26,15 +34,34 @@ let
     ];
   };
 
-  rust-bin = pkgs.rust-bin.stable.latest.default.override {
+  archs = {
+    amd64 = {
+      system = "x86_64-linux";
+      pkgs = import nixpkgs {
+        localSystem = "x86_64-linux";
+      };
+      tag = "latest-amd64";
+      targetTriple = "x86_64-unknown-linux-musl";
+    };
+    arm64 = {
+      system = "aarch64-linux";
+      pkgs = import nixpkgs {
+        localSystem = "aarch64-linux";
+      };
+      tag = "latest-arm64";
+      targetTriple = "aarch64-unknown-linux-musl";
+    };
+  };
+
+  rust-bin = currentPkgs.rust-bin.stable.latest.default.override {
     targets = [
-      "x86_64-unknown-linux-gnu"
-      "aarch64-unknown-linux-gnu"
+      "x86_64-unknown-linux-musl"
+      "aarch64-unknown-linux-musl"
     ];
   };
 
   mkRustPkg =
-    target:
+    targetTriple:
     stdenv.mkDerivation {
       inherit
         pname
@@ -42,70 +69,63 @@ let
         src
         ;
 
-      cargoDeps = pkgs.rustPlatform.fetchCargoVendor {
-        inherit src;
+      cargoDeps = currentPkgs.rustPlatform.fetchCargoVendor {
+        src = cargo-src;
         hash = cargo-deps-hash;
       };
 
       nativeBuildInputs = [
-        pkgs.rustPlatform.cargoSetupHook
-        pkgs.zig
+        currentPkgs.rustPlatform.cargoSetupHook
+        currentPkgs.zig
         rust-bin
       ];
 
       buildPhase = ''
         export HOME=$(mktemp -d)
-        ${pkgs.cargo-zigbuild}/bin/cargo-zigbuild zigbuild --release --target ${target}
+        ${currentPkgs.cargo-zigbuild}/bin/cargo-zigbuild zigbuild --release --target ${targetTriple}
       '';
 
       installPhase = ''
         mkdir -p $out/bin
-        cp ./target/${target}/release/${pname} $out/bin/
+        cp ./target/${targetTriple}/release/${pname} $out/bin/
       '';
     };
 
-  amd64 = {
-    system = "x86_64-linux";
-    pkgs = import nixpkgs {
-      localSystem = "x86_64-linux";
-    };
-    tag = "latest-amd64";
-    target = "x86_64-unknown-linux-gnu";
-  };
-
-  arm64 = {
-    system = "aarch64-linux";
-    pkgs = import nixpkgs {
-      localSystem = "aarch64-linux";
-    };
-    tag = "latest-arm64";
-    target = "aarch64-unknown-linux-gnu";
-  };
-
   mkDocker =
-    targetAttrs:
+    {
+      system,
+      pkgs,
+      tag,
+      targetTriple,
+    }:
     let
       pkgs-cross =
-        if targetAttrs.system == builtins.currentSystem then
-          pkgs
+        if system == builtins.currentSystem then
+          currentPkgs
         else
           (import nixpkgs {
-            crossSystem = targetAttrs.system;
+            crossSystem = system;
           });
-      rust-package = mkRustPkg targetAttrs.target;
+      rust-package = mkRustPkg targetTriple;
     in
     pkgs-cross.dockerTools.buildLayeredImage {
       name = docker-image;
-      inherit (targetAttrs) tag;
+      inherit tag;
       contents = [
-        targetAttrs.pkgs.ffmpeg-headless
+        pkgs.ffmpeg-headless
       ];
       config.Entrypoint = [
         "${rust-package}/bin/${pname}"
       ];
     };
+
+  currentTargetTriple =
+    (lib.lists.findFirst (arch: arch.system == builtins.currentSystem) {
+      targetTriple = throw "Unknown current system ${builtins.currentSystem}";
+    } (lib.attrValues archs)).targetTriple;
 in
 {
-  docker-amd64 = mkDocker amd64;
-  docker-arm64 = mkDocker arm64;
+  samey = mkRustPkg currentTargetTriple;
+  docker-amd64 = mkDocker archs.amd64;
+  docker-arm64 = mkDocker archs.arm64;
 }

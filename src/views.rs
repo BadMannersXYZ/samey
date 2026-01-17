@@ -1460,6 +1460,7 @@ struct ViewPostPageTemplate {
     application_name: String,
     age_confirmation: bool,
     post: samey_post::Model,
+    description_plaintext: Option<String>,
     pool_data: Vec<PostPoolData>,
     tags: Vec<samey_tag::Model>,
     tags_text: Option<String>,
@@ -1563,11 +1564,31 @@ pub(crate) async fn view_post_page(
 
     let pool_data = get_pool_data_for_post(&db, post_id, auth_session.user.as_ref()).await?;
 
+    let description_plaintext = post.description.as_ref().map(|description| {
+        use pulldown_cmark::{Event, Options, Parser, TagEnd, html::write_html_fmt};
+
+        let parser = Parser::new_ext(description, Options::empty())
+            .map(|event| match event {
+                Event::End(TagEnd::Paragraph) => Event::Text(" ".into()),
+                _ => event,
+            })
+            .filter(|event| match event {
+                Event::Text(_) => true,
+                _ => false,
+            });
+        let mut buf = String::new();
+        write_html_fmt(&mut buf, parser)
+            .ok()
+            .map(|_| buf)
+            .unwrap_or_else(|| description.clone())
+    });
+
     Ok(Html(
         ViewPostPageTemplate {
             application_name,
             age_confirmation,
             post,
+            description_plaintext,
             pool_data,
             tags,
             tags_text: query.tags,
