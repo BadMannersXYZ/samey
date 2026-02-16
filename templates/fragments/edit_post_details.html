@@ -1,55 +1,102 @@
 <article id="post-details">
-  <form hx-put="/post_details/{{ post.id }}" hx-target="#post-details" hx-swap="outerHTML">
-    <div>
-      <label>Tags</label>
-      {% let tags_value = tags %} {% include "fragments/tags_input.html" %}
-      <div
-        hx-trigger="keyup[key=='Escape'] from:previous .tags"
-        hx-target="next .tags-autocomplete"
-        hx-swap="innerHTML"
-        hx-delete="/remove"
-        hidden
-      ></div>
-      <ul class="reset tags-autocomplete" id="search-autocomplete"></ul>
-    </div>
-    <div>
-      <label>Title</label>
-      <input name="title" type="text" maxlength="100" placeholder="Title" value="{% if let Some(title) = post.title %}{{ title }}{% endif %}" />
-    </div>
-    <div>
-      <label>Description</label>
-      <textarea name="description" placeholder="Description in Markdown">{% if let Some(description) = post.description %}{{ description }}{% endif %}</textarea>
-    </div>
-    <div>
-      <label>Is public post?</label>
-      <input name="is_public" type="checkbox" {% if post.is_public %}checked{% endif %} value="true" />
-    </div>
-    <div>
-      <label>Rating</label>
-      <select name="rating">
-        <option value="u" {% if post.rating == "u" %}selected{% endif %}>Unrated</option>
-        <option value="s" {% if post.rating == "s" %}selected{% endif %}>Safe</option>
-        <option value="q" {% if post.rating == "q" %}selected{% endif %}>Questionable</option>
-        <option value="e" {% if post.rating == "e" %}selected{% endif %}>Explicit</option>
-      </select>
-    </div>
-    <div>
-      <label>Source(s)</label>
-      <ul id="sources">
-        {% for source in sources %}
-        {% include "fragments/post_source.html" %}
-        {% endfor %}
-      </ul>
-      <button hx-post="/post_source" hx-target="#sources" hx-swap="beforeend">+ Add source</button>
-    </div>
-    <div>
-      <label>Parent post</label>
-      <input name="parent_post" type="text" pattern="[0-9]*" value="{% if let Some(parent_id) = post.parent_id %}{{ parent_id }}{% endif %}" placeholder="Post ID" />
-    </div>
-    <div>
-      <button>Save changes</button>
-      <button hx-get="/post_details/{{ post.id }}">Cancel</button>
-      <button hx-confirm="Are you sure that you want to delete this post? This can't be undone!" hx-delete="/post/{{ post.id }}" hx-target="body" hx-replace-url="/">Delete post</button>
-    </div>
-  </form>
+    <form
+        hx-put="/post_details/{{ post.id }}"
+        hx-target="#post-details"
+        hx-swap="outerHTML"
+    >
+        <div>
+            <label>Tags</label>
+            {% let tags_value = tags %} {% include "fragments/tags_input.html"
+            %}
+            <div
+                hx-trigger="keyup[key=='Escape'] from:previous .tags"
+                hx-target="next .tags-autocomplete"
+                hx-swap="innerHTML"
+                hx-delete="/remove"
+                hidden
+            ></div>
+            <ul class="reset tags-autocomplete" id="search-autocomplete"></ul>
+        </div>
+        <div>
+            <label>Title</label>
+            <input
+                name="title"
+                type="text"
+                maxlength="100"
+                placeholder="Title"
+                value="{% if let Some(title) = post.title %}{{ title }}{% endif %}"
+            />
+        </div>
+        <div>
+            <label>Description</label>
+            <textarea name="description" placeholder="Description in Markdown">
+{% if let Some(description) = post.description %}{{ description }}{% endif %}</textarea
+            >
+        </div>
+        <div>
+            <label>Is public post?</label>] {% if post.is_public %}
+            <input name="is_public" type="checkbox" checked value="true" />
+            {% else %}
+            <input name="is_public" type="checkbox" value="true" />
+            {% endif %}
+        </div>
+        <div>
+            <label>Rating</label>
+            <select name="rating">
+                {% if post.rating == "u" %}
+                <option value="u" selected>Unrated</option>
+                {% else %}
+                <option value="u">Unrated</option>
+                {% endif %} {% if post.rating == "s" %}
+                <option value="s" selected>Safe</option>
+                {% else %}
+                <option value="s">Safe</option>
+                {% endif %} {% if post.rating == "q" %}
+                <option value="q" selected>Questionable</option>
+                {% else %}
+                <option value="q">Questionable</option>
+                {% endif %} {% if post.rating == "e" %}
+                <option value="e" selected>Explicit</option>
+                {% else %}
+                <option value="e">Explicit</option>
+                {% endif %}
+            </select>
+        </div>
+        <div>
+            <label>Source(s)</label>
+            <ul id="sources">
+                {% for source in sources %} {% include
+                "fragments/post_source.html" %} {% endfor %}
+            </ul>
+            <button
+                hx-post="/post_source"
+                hx-target="#sources"
+                hx-swap="beforeend"
+            >
+                + Add source
+            </button>
+        </div>
+        <div>
+            <label>Parent post</label>
+            <input
+                name="parent_post"
+                type="text"
+                pattern="[0-9]*"
+                value="{% if let Some(parent_id) = post.parent_id %}{{ parent_id }}{% endif %}"
+                placeholder="Post ID"
+            />
+        </div>
+        <div>
+            <button>Save changes</button>
+            <button hx-get="/post_details/{{ post.id }}">Cancel</button>
+            <button
+                hx-confirm="Are you sure that you want to delete this post? This can't be undone!"
+                hx-delete="/post/{{ post.id }}"
+                hx-target="body"
+                hx-replace-url="/"
+            >
+                Delete post
+            </button>
+        </div>
+    </form>
 </article>

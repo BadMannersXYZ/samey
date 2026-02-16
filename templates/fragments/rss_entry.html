@@ -1,5 +1,5 @@
 <h1>
-  {% if let Some(title) = post.title %}{{ title }}{% else %}Details{% endif %}
+    {% if let Some(title) = post.title %}{{ title }}{% else %}Details{% endif %}
 </h1>
 {% match post.media_type.as_ref() %}{% when "image" %}
 <img src="{{ base_url }}/files/{{ post.media }}" />

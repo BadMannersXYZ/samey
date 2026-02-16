@@ -1,28 +1,28 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-  <head>
-    <title>Create pool - {{ application_name }}</title>
-    <meta property="og:site_name" content="{{ application_name }}" />
-    {% include "fragments/common_headers.html" %}
-  </head>
-  <body>
-    {% if age_confirmation %}{% include "fragments/age_restricted_check.html"
-    %}{% endif %}
-    <div><a href="/">&lt; To home</a></div>
-    <main>
-      <h1>Create pool</h1>
-      <form method="post" action="/pool">
-        <input
-          class="pool"
-          type="text"
-          id="pool"
-          name="pool"
-          maxlength="100"
-          placeholder="Name"
-          autofocus
-        />
-        <button type="submit">Create pool</button>
-      </form>
-    </main>
-  </body>
+    <head>
+        <title>Create pool - {{ application_name }}</title>
+        <meta property="og:site_name" content="{{ application_name }}" />
+        {% include "fragments/common_headers.html" %}
+    </head>
+    <body>
+        {% if age_confirmation %}{% include
+        "fragments/age_restricted_check.html" %}{% endif %}
+        <div><a href="/">&lt; To home</a></div>
+        <main>
+            <h1>Create pool</h1>
+            <form method="post" action="/pool">
+                <input
+                    class="pool"
+                    type="text"
+                    id="pool"
+                    name="pool"
+                    maxlength="100"
+                    placeholder="Name"
+                    autofocus
+                />
+                <button type="submit">Create pool</button>
+            </form>
+        </main>
+    </body>
 </html>

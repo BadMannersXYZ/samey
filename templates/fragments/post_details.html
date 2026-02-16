@@ -1,64 +1,65 @@
 <article id="post-details">
-  <h2>
-    {% if let Some(title) = post.title %}{{ title }}{% else %}Details{% endif %}
-  </h2>
-  {% if let Some(description) = post.description %}
-  <div id="description">{{ description | markdown }}</div>
-  {% endif %}
-  <table>
-    {% if can_edit %}
-    <tr>
-      <th>Is public post?</th>
-      <td>{% if post.is_public %}Yes{% else %}No{% endif %}</td>
-    </tr>
+    <h2>
+        {% if let Some(title) = post.title %}{{ title }}{% else %}Details{%
+        endif %}
+    </h2>
+    {% if let Some(description) = post.description %}
+    <div id="description">{{ description | markdown }}</div>
     {% endif %}
-    <tr>
-      <th>Rating</th>
-      <td>
-        {% match post.rating.as_ref() %} {% when "u" %} Unrated {% when "s" %}
-        Safe {% when "q" %} Questionable {% when "e" %} Explicit {% else %}
-        Unknown {% endmatch %}
-      </td>
-    </tr>
-    <tr>
-      <th>Source(s)</th>
-      <td>
-        {% if sources.is_empty() %}
-        <em>None</em>{% else %}
-        <ul class="reset">
-          {% for source in sources %}
-          <li id="source-{{ source.id }}">
-            <a href="{{ source.url }}">{{ source.url }}</a>
-          </li>
-          {% endfor %}
-        </ul>
+    <table>
+        {% if can_edit %}
+        <tr>
+            <th>Is public post?</th>
+            <td>{% if post.is_public %}Yes{% else %}No{% endif %}</td>
+        </tr>
         {% endif %}
-      </td>
-    </tr>
-    <tr>
-      <th>Type</th>
-      <td>{{ post.media_type | capitalize }}</td>
-    </tr>
-    <tr>
-      <th>Width</th>
-      <td>{{ post.width }}px</td>
-    </tr>
-    <tr>
-      <th>Height</th>
-      <td>{{ post.height }}px</td>
-    </tr>
-    <tr>
-      <th>Upload date</th>
-      <td>{{ post.uploaded_at }}</td>
-    </tr>
-  </table>
-  {% if can_edit %}
-  <button
-    hx-get="/post_details/{{ post.id }}/edit"
-    hx-target="#post-details"
-    hx-swap="outerHTML"
-  >
-    Edit post
-  </button>
-  {% endif %}
+        <tr>
+            <th>Rating</th>
+            <td>
+                {% match post.rating.as_ref() %} {% when "u" %} Unrated {% when
+                "s" %} Safe {% when "q" %} Questionable {% when "e" %} Explicit
+                {% else %} Unknown {% endmatch %}
+            </td>
+        </tr>
+        <tr>
+            <th>Source(s)</th>
+            <td>
+                {% if sources.is_empty() %}
+                <em>None</em>{% else %}
+                <ul class="reset">
+                    {% for source in sources %}
+                    <li id="source-{{ source.id }}">
+                        <a href="{{ source.url }}">{{ source.url }}</a>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </td>
+        </tr>
+        <tr>
+            <th>Type</th>
+            <td>{{ post.media_type | capitalize }}</td>
+        </tr>
+        <tr>
+            <th>Width</th>
+            <td>{{ post.width }}px</td>
+        </tr>
+        <tr>
+            <th>Height</th>
+            <td>{{ post.height }}px</td>
+        </tr>
+        <tr>
+            <th>Upload date</th>
+            <td>{{ post.uploaded_at }}</td>
+        </tr>
+    </table>
+    {% if can_edit %}
+    <button
+        hx-get="/post_details/{{ post.id }}/edit"
+        hx-target="#post-details"
+        hx-swap="outerHTML"
+    >
+        Edit post
+    </button>
+    {% endif %}
 </article>

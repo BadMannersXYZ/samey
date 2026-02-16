@@ -1,14 +1,14 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-  <head>
-    <title>Bad request</title>
-    {% include "fragments/common_headers.html" %}
-  </head>
-  <body>
-    <div><a href="/">&lt; To home</a></div>
-    <main>
-      <h1>Bad request</h1>
-      <p>The provided parameters are invalid: {{ error }}</p>
-    </main>
-  </body>
+    <head>
+        <title>Bad request</title>
+        {% include "fragments/common_headers.html" %}
+    </head>
+    <body>
+        <div><a href="/">&lt; To home</a></div>
+        <main>
+            <h1>Bad request</h1>
+            <p>The provided parameters are invalid: {{ error }}</p>
+        </main>
+    </body>
 </html>

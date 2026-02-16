@@ -5,20 +5,20 @@
     <meta property="og:site_name" content="{{ application_name }}" />
     {% include "fragments/common_headers.html" %}
     {% if let Some(title) = post.title %}<meta property="og:title" content="{{ title }}"/>{% else %}<meta property="og:title" content="{{ tags_post }}" />{% endif %}
-    <meta property="og:url" content="/post/{{ post.id }}" />
+    <meta property="og:url" content="https://{{ host }}/post/{{ post.id }}" />
     {% if let Some(description) = description_plaintext %}<meta property="og:description" content="{{ description }}" />{% endif %}
     {% match post.media_type.as_ref() %} {% when "image" %}
-    <meta property="og:image" content="/files/{{ post.media }}" />
+    <meta property="og:image" content="https://{{ host }}/files/{{ post.media }}" />
     <meta property="og:image:width" content="{{ post.width }}" />
     <meta property="og:image:height" content="{{ post.height }}" />
     <meta property="og:image:alt" content="{{ tags_post }}" />
     <meta property="twitter:card" content="summary_large_image" />
     {% if let Some(title) = post.title %}<meta property="twitter:title" content="{{ title }}"/>{% else %}<meta property="twitter:title" content="{{ tags_post }}" />{% endif %}
     {% if let Some(description) = post.description %}<meta property="twitter:description" content="{{ description }}" />{% endif %}
-    <meta property="twitter:image" content="/files/{{ post.media }}" />
+    <meta property="twitter:image" content="https://{{ host }}/files/{{ post.media }}" />
     {% when "video" %}
     <meta property="og:type" content="video.other" />
-    <meta property="og:video" content="/files/{{ post.media }}" />
+    <meta property="og:video" content="https://{{ host }}/files/{{ post.media }}" />
     <meta property="og:video:width" content="{{ post.width }}" />
     <meta property="og:video:height" content="{{ post.height }}" />
     <meta property="og:video:alt" content="{{ tags_post }}" />

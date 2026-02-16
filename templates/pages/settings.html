@@ -1,49 +1,53 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-  <head>
-    <title>Settings - {{ application_name }}</title>
-    <meta property="og:site_name" content="{{ application_name }}" />
-    {% include "fragments/common_headers.html" %}
-  </head>
-  <body>
-    {% if age_confirmation %}{% include "fragments/age_restricted_check.html"
-    %}{% endif %}
-    <div><a href="/">&lt; To home</a></div>
-    <main>
-      <h1>Settings</h1>
-      <form method="post" action="/settings">
-        <div>
-          <label>Application name</label>
-          <input
-            name="application_name"
-            type="text"
-            value="{{ application_name }}"
-          />
-        </div>
-        <div>
-          <label>Base URL</label>
-          <input name="base_url" type="text" value="{{ base_url }}" />
-        </div>
-        <div>
-          <label>Favicon post ID</label>
-          <input name="favicon_post_id" type="text" pattern="[0-9]*" />
-        </div>
-        <div>
-          <label>Ask for age confirmation?</label>
-          <input
-            name="age_confirmation"
-            type="checkbox"
-            {%
-            if
-            age_confirmation
-            %}checked{%
-            endif
-            %}
-            value="true"
-          />
-        </div>
-        <button>Save changes</button>
-      </form>
-    </main>
-  </body>
+    <head>
+        <title>Settings - {{ application_name }}</title>
+        <meta property="og:site_name" content="{{ application_name }}" />
+        {% include "fragments/common_headers.html" %}
+    </head>
+    <body>
+        {% if age_confirmation %}{% include
+        "fragments/age_restricted_check.html" %}{% endif %}
+        <div><a href="/">&lt; To home</a></div>
+        <main>
+            <h1>Settings</h1>
+            <form method="post" action="/settings">
+                <div>
+                    <label>Application name</label>
+                    <input
+                        name="application_name"
+                        type="text"
+                        value="{{ application_name }}"
+                    />
+                </div>
+                <div>
+                    <label>Base URL</label>
+                    <input name="base_url" type="text" value="{{ base_url }}" />
+                </div>
+                <div>
+                    <label>Favicon post ID</label>
+                    <input
+                        name="favicon_post_id"
+                        type="text"
+                        pattern="[0-9]*"
+                    />
+                </div>
+                <div>
+                    <label>Ask for age confirmation?</label>
+                    <input
+                        name="age_confirmation"
+                        type="checkbox"
+                        {%
+                        if
+                        age_confirmation
+                        %}checked{%
+                        endif
+                        %}
+                        value="true"
+                    />
+                </div>
+                <button>Save changes</button>
+            </form>
+        </main>
+    </body>
 </html>

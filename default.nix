@@ -1,9 +1,13 @@
+{
+  system ? builtins.currentSystem,
+}:
 let
   inherit (import ./npins)
     nixpkgs
     rust-overlay
     ;
   currentPkgs = import nixpkgs {
+    inherit system;
     overlays = [ (import rust-overlay) ];
   };
   inherit (currentPkgs) lib stdenv;
@@ -14,7 +18,7 @@ let
   description = crate-info.package.description;
 
   docker-image = "badmanners/${pname}";
-  cargo-deps-hash = "sha256-PD/ZR/sdmqA18xcOi9AnwQtDYVyELPS6GBF/pzcJzkE=";
+  cargo-deps-hash = "sha256-w8D50YDFC9K7dfXKEIrsuAF0cvcvotw2O4JWoPBnHJ0=";
   cargo-src = lib.fileset.toSource {
     root = ./.;
     fileset = lib.fileset.unions [

@@ -1,18 +1,18 @@
 {% if !tags.is_empty() %}
 <li>
-  <button hx-delete="/remove" hx-target="closest ul" hx-swap="innerHTML">
-    (close)
-  </button>
+    <button hx-delete="/remove" hx-target="closest ul" hx-swap="innerHTML">
+        (close)
+    </button>
 </li>
 {% endif %}{% for tag in tags %}
 <li>
-  <button
-    hx-post="/select_tag"
-    hx-target="previous .tags"
-    hx-swap="outerHTML"
-    hx-vals='{"selection_end": {{ selection_end }}, "new_tag": {{ tag.value | json | safe }}}'
-  >
-    {{ tag.name }}
-  </button>
+    <button
+        hx-post="/select_tag"
+        hx-target="previous .tags"
+        hx-swap="outerHTML"
+        hx-vals='{"selection_end": {{ selection_end }}, "new_tag": {{ tag.value | json | safe }}}'
+    >
+        {{ tag.name }}
+    </button>
 </li>
 {% endfor %}

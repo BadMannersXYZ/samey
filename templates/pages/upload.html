@@ -1,34 +1,38 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-  <head>
-    <title>Upload media - {{ application_name }}</title>
-    <meta property="og:site_name" content="{{ application_name }}" />
-    {% include "fragments/common_headers.html" %}
-  </head>
-  <body>
-    {% if age_confirmation %}{% include "fragments/age_restricted_check.html"
-    %}{% endif %}
-    <div><a href="/">&lt; To home</a></div>
-    <main>
-      <h1>Upload media</h1>
-      <form method="post" action="/upload" enctype="multipart/form-data">
-        {% let tags_value = "" %} {% include "fragments/tags_input.html" %}
-        <div
-          hx-trigger="keyup[key=='Escape'] from:previous .tags"
-          hx-target="next .tags-autocomplete"
-          hx-swap="innerHTML"
-          hx-delete="/remove"
-          hidden
-        ></div>
-        <ul class="reset tags-autocomplete" id="upload-autocomplete"></ul>
-        <input
-          type="file"
-          id="media-file"
-          name="media-file"
-          accept=".jpg, .jpeg, .png, .webp, .gif, .bmp, .tiff, .mp4, .webm, .mkv, .mov"
-        />
-        <button type="submit">Create post</button>
-      </form>
-    </main>
-  </body>
+    <head>
+        <title>Upload media - {{ application_name }}</title>
+        <meta property="og:site_name" content="{{ application_name }}" />
+        {% include "fragments/common_headers.html" %}
+    </head>
+    <body>
+        {% if age_confirmation %}{% include
+        "fragments/age_restricted_check.html" %}{% endif %}
+        <div><a href="/">&lt; To home</a></div>
+        <main>
+            <h1>Upload media</h1>
+            <form method="post" action="/upload" enctype="multipart/form-data">
+                {% let tags_value = "" %} {% include "fragments/tags_input.html"
+                %}
+                <div
+                    hx-trigger="keyup[key=='Escape'] from:previous .tags"
+                    hx-target="next .tags-autocomplete"
+                    hx-swap="innerHTML"
+                    hx-delete="/remove"
+                    hidden
+                ></div>
+                <ul
+                    class="reset tags-autocomplete"
+                    id="upload-autocomplete"
+                ></ul>
+                <input
+                    type="file"
+                    id="media-file"
+                    name="media-file"
+                    accept=".jpg, .jpeg, .png, .webp, .gif, .bmp, .tiff, .mp4, .webm, .mkv, .mov"
+                />
+                <button type="submit">Create post</button>
+            </form>
+        </main>
+    </body>
 </html>

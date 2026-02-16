@@ -13,7 +13,7 @@ use axum::{
     extract::{Multipart, Path, Query, State},
     response::{Html, IntoResponse, Redirect},
 };
-use axum_extra::extract::Form;
+use axum_extra::extract::{Form, Host};
 use chrono::Utc;
 use image::{GenericImageView, ImageFormat, ImageReader};
 use itertools::Itertools;
@@ -852,12 +852,14 @@ struct ViewPoolTemplate {
     pool: samey_pool::Model,
     posts: Vec<PoolPost>,
     can_edit: bool,
+    host: String,
 }
 
 pub(crate) async fn view_pool(
     State(AppState { db, app_config, .. }): State<AppState>,
     auth_session: AuthSession,
     Path(pool_id): Path<i32>,
+    Host(host): Host,
 ) -> Result<impl IntoResponse, SameyError> {
     let app_config = app_config.read().await;
     let application_name = app_config.application_name.clone();
@@ -888,6 +890,7 @@ pub(crate) async fn view_pool(
             pool,
             can_edit,
             posts,
+            host,
         }
         .render()?,
     ))
@@ -1469,6 +1472,7 @@ struct ViewPostPageTemplate {
     can_edit: bool,
     parent_post: Option<PostOverview>,
     children_posts: Vec<PostOverview>,
+    host: String,
 }
 
 pub(crate) async fn view_post_page(
@@ -1476,6 +1480,7 @@ pub(crate) async fn view_post_page(
     auth_session: AuthSession,
     Query(query): Query<PostsQuery>,
     Path(post_id): Path<i32>,
+    Host(host): Host,
 ) -> Result<impl IntoResponse, SameyError> {
     let app_config = app_config.read().await;
     let application_name = app_config.application_name.clone();
@@ -1597,6 +1602,7 @@ pub(crate) async fn view_post_page(
             can_edit,
             parent_post,
             children_posts,
+            host,
         }
         .render()?,
     ))

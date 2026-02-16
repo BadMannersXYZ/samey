@@ -1,9 +1,13 @@
+{
+  system ? builtins.currentSystem,
+}:
 let
   inherit (import ./npins)
     nixpkgs
     rust-overlay
     ;
   pkgs = import nixpkgs {
+    inherit system;
     overlays = [ (import rust-overlay) ];
   };
 in

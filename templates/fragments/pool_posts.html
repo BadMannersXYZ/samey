@@ -1,35 +1,35 @@
 <div id="pool-posts">
-  {% if posts.is_empty() %}
-  <span>No posts in pool.</span>
-  {% else %}
-  <ul
-    class="reset flex sortable"
-    hx-put="/pool/{{ pool.id }}/sort"
-    hx-trigger="end"
-    hx-vals="js:{old_index: event.oldIndex, new_index: event.newIndex}"
-    hx-target="#pool-posts"
-    hx-swap="outerHTML"
-  >
-    {% for post in posts %}
-    <li class="pool-post flex flex-col">
-      <a href="/post/{{ post.id }}" title="{{ post.tags }}">
-        <img src="/files/{{ post.thumbnail }}" />
-        <div class="flex">
-          <div>{{ post.rating | upper }}</div>
-          <div>{{ post.media_type }}</div>
-        </div>
-      </a>
-      {% if can_edit %}
-      <button
-        hx-delete="/pool_post/{{ post.pool_post_id }}"
-        hx-target="closest .pool-post"
+    {% if posts.is_empty() %}
+    <span>No posts in pool.</span>
+    {% else %}
+    <ul
+        class="reset flex sortable"
+        hx-put="/pool/{{ pool.id }}/sort"
+        hx-trigger="end"
+        hx-vals="js:{old_index: event.oldIndex, new_index: event.newIndex}"
+        hx-target="#pool-posts"
         hx-swap="outerHTML"
-      >
-        Remove from pool
-      </button>
-      {% endif %}
-    </li>
-    {% endfor %}
-  </ul>
-  {% endif %}
+    >
+        {% for post in posts %}
+        <li class="pool-post flex flex-col">
+            <a href="/post/{{ post.id }}" title="{{ post.tags }}">
+                <img src="/files/{{ post.thumbnail }}" />
+                <div class="flex">
+                    <div>{{ post.rating | upper }}</div>
+                    <div>{{ post.media_type }}</div>
+                </div>
+            </a>
+            {% if can_edit %}
+            <button
+                hx-delete="/pool_post/{{ post.pool_post_id }}"
+                hx-target="closest .pool-post"
+                hx-swap="outerHTML"
+            >
+                Remove from pool
+            </button>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
 </div>

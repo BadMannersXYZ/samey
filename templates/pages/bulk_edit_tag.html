@@ -1,37 +1,41 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-  <head>
-    <title>Bulk edit tag - {{ application_name }}</title>
-    <meta property="og:site_name" content="{{ application_name }}" />
-    {% include "fragments/common_headers.html" %}
-  </head>
-  <body>
-    {% if age_confirmation %}{% include "fragments/age_restricted_check.html"
-    %}{% endif %}
-    <div><a href="/">&lt; To home</a></div>
-    <main>
-      <h1>Bulk edit tag</h1>
-      <article>
-        <h2>Select tag to edit</h2>
-        <form method="post" action="/bulk_edit_tag">
-          {% let tags_value = "" %} {% include "fragments/tags_input.html" %}
-          <div
-            hx-trigger="keyup[key=='Escape'] from:previous .tags"
-            hx-target="next .tags-autocomplete"
-            hx-swap="innerHTML"
-            hx-delete="/remove"
-            hidden
-          ></div>
-          <ul class="reset tags-autocomplete" id="search-autocomplete"></ul>
-          <input type="text" name="new_tag" placeholder="New tag" />
-          <button type="submit">Submit</button>
-          {% match message %}{% when BulkEditTagMessage::Success %}
-          <div>Success!</div>
-          {% when BulkEditTagMessage::Failure with (msg) %}
-          <div>Error: {{ msg }}</div>
-          {% when BulkEditTagMessage::None %}{% endmatch %}
-        </form>
-      </article>
-    </main>
-  </body>
+    <head>
+        <title>Bulk edit tag - {{ application_name }}</title>
+        <meta property="og:site_name" content="{{ application_name }}" />
+        {% include "fragments/common_headers.html" %}
+    </head>
+    <body>
+        {% if age_confirmation %}{% include
+        "fragments/age_restricted_check.html" %}{% endif %}
+        <div><a href="/">&lt; To home</a></div>
+        <main>
+            <h1>Bulk edit tag</h1>
+            <article>
+                <h2>Select tag to edit</h2>
+                <form method="post" action="/bulk_edit_tag">
+                    {% let tags_value = "" %} {% include
+                    "fragments/tags_input.html" %}
+                    <div
+                        hx-trigger="keyup[key=='Escape'] from:previous .tags"
+                        hx-target="next .tags-autocomplete"
+                        hx-swap="innerHTML"
+                        hx-delete="/remove"
+                        hidden
+                    ></div>
+                    <ul
+                        class="reset tags-autocomplete"
+                        id="search-autocomplete"
+                    ></ul>
+                    <input type="text" name="new_tag" placeholder="New tag" />
+                    <button type="submit">Submit</button>
+                    {% match message %}{% when BulkEditTagMessage::Success %}
+                    <div>Success!</div>
+                    {% when BulkEditTagMessage::Failure with (msg) %}
+                    <div>Error: {{ msg }}</div>
+                    {% when BulkEditTagMessage::None %}{% endmatch %}
+                </form>
+            </article>
+        </main>
+    </body>
 </html>
