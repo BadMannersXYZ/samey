@@ -94,13 +94,12 @@ let
         mkdir -p $out/bin
         cp ./target/${targetTriple}/release/${pname} $out/bin/
       '';
-    })
-    // {
+
       meta = {
         inherit description;
         mainProgram = pname;
       };
-    };
+    });
 
   mkDocker =
     {
@@ -128,12 +127,19 @@ let
     };
 
   currentTargetTriple =
-    (lib.lists.findFirst (arch: arch.system == builtins.currentSystem) {
-      targetTriple = throw "Unknown current system ${builtins.currentSystem}";
+    {
+      system ? system,
+    }:
+    (lib.lists.findFirst (arch: arch.system == system) {
+      targetTriple = throw "Unknown current system ${system}";
     } (lib.attrValues archs)).targetTriple;
+
+  samey = mkRustPkg (currentTargetTriple {
+    inherit system;
+  });
 in
 {
-  samey = mkRustPkg currentTargetTriple;
+  inherit samey;
   docker-amd64 = mkDocker archs.amd64;
   docker-arm64 = mkDocker archs.arm64;
 }
