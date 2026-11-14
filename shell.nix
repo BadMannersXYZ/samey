@@ -1,22 +1,17 @@
 {
   system ? builtins.currentSystem,
+  inputs ? import ./.tack,
+  pkgs ? import inputs.nixpkgs { inherit system; },
 }:
-let
-  inherit (import ./npins)
-    nixpkgs
-    rust-overlay
-    ;
-  pkgs = import nixpkgs {
-    inherit system;
-    overlays = [ (import rust-overlay) ];
-  };
-in
 pkgs.mkShell {
   packages = [
     pkgs.bacon
+    pkgs.cargo
+    pkgs.clippy
     pkgs.ffmpeg_8-headless
     pkgs.just
-    pkgs.rust-bin.stable.latest.default
+    pkgs.rustc
+    pkgs.rustfmt
     pkgs.sea-orm-cli
   ];
 }

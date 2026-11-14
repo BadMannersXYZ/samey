@@ -1,0 +1,17 @@
+{
+  "$declared": {
+    "nixpkgs": "github:NixOS/nixpkgs/nixpkgs-unstable"
+  },
+  "nixpkgs": {
+    "type": "github",
+    "owner": "NixOS",
+    "repo": "nixpkgs",
+    "rev": "2074cc672349f14240fb7ea90d509e0b643e9dd4",
+    "narHash": "sha256-E0hYoioqUtM2XmPPvYYpJgdADF5AW9oOoPSEiM9dTHQ=",
+    "lastModified": 1794495034,
+    "archive": {
+      "hash": "sha256-H3CU2ZnOj0JLW8AB4JohYF59nFU1rYpeRrNZi4tSNdQ=",
+      "outHash": "sha256-E3pAx52+ePcwP1HWlmZPhyAEFBv1Fdd0cuNPBN5ZlWc="
+    }
+  }
+}
